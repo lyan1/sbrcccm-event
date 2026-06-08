@@ -48,24 +48,31 @@ export function EventCalendar({
     return { open, openPast, completed };
   }, [markers]);
 
+  const monthKey = `${month.getFullYear()}-${month.getMonth()}`;
+  const eventsKey = events.map((e) => e.id).join(",");
+
   return (
     <div className="event-calendar rounded-lg border bg-card p-3">
-      {loading && <p className="mb-2 text-xs text-muted-foreground">{t("loading")}</p>}
-      <DayPicker
-        mode="single"
-        selected={selectedDate}
-        onSelect={onSelectDate}
-        month={month}
-        onMonthChange={onMonthChange}
-        locale={locale}
-        modifiers={modifiers}
-        modifiersClassNames={{
-          open: "event-day-open",
-          openPast: "event-day-open-past",
-          completed: "event-day-completed",
-        }}
-        className="w-full"
-      />
+      {loading ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">{t("loading")}</p>
+      ) : (
+        <DayPicker
+          key={`${monthKey}-${eventsKey}`}
+          mode="single"
+          selected={selectedDate}
+          onSelect={onSelectDate}
+          month={month}
+          onMonthChange={onMonthChange}
+          locale={locale}
+          modifiers={modifiers}
+          modifiersClassNames={{
+            open: "event-day-open",
+            openPast: "event-day-open-past",
+            completed: "event-day-completed",
+          }}
+          className="w-full"
+        />
+      )}
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-4 rounded-sm bg-emerald-500" />

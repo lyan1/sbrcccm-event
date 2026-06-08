@@ -9,6 +9,7 @@ import { PromotionalSection, type PromoCard } from "@/components/promotional-sec
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { monthRange, toDateKey, type CalendarEventSummary } from "@/lib/calendar";
+import { parseDateTimeInTimezone } from "@/lib/timezone";
 
 export default function HomePage() {
   const { t } = useI18n();
@@ -40,7 +41,7 @@ export default function HomePage() {
             .filter((e) => e.status === "OPEN" && e.eventDate >= today)
             .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
           if (upcoming.length > 0) {
-            setSelectedDate(new Date(`${upcoming[0].eventDate}T12:00:00`));
+            setSelectedDate(parseDateTimeInTimezone(upcoming[0].eventDate, "12:00"));
           }
           hasAutoSelectedDate.current = true;
         }

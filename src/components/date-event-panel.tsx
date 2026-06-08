@@ -33,18 +33,19 @@ interface PublicEventDetails {
   }>;
 }
 
-interface CalendarEventSummary {
+interface DayEventSummary {
   id: string;
   title: string;
   startTime: string;
   endTime: string;
   locationName: string | null;
   status: string;
+  registeredParticipantCount: number;
 }
 
 interface DateEventPanelProps {
   selectedDate: Date | undefined;
-  dayEvents: CalendarEventSummary[];
+  dayEvents: DayEventSummary[];
   onRefreshCalendar: () => void;
 }
 
@@ -58,24 +59,70 @@ export function DateEventPanel({
 
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [details, setDetails] = useState<PublicEventDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editReg, setEditReg] = useState<PublicEventDetails["registrations"][0] | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
-    setExpandedEventId(null);
-    setDetails(null);
-  }, [selectedDate]);
+    if (!selectedDate || dayEvents.length === 0) {
+      setExpandedEventId(null);
+      setDetails(null);
+      setDetailsLoading(false);
+      return;
+    }
+
+    const preferred = dayEvents.find((e) => e.status === "OPEN") ?? dayEvents[0];
+    let cancelled = false;
+
+    setExpandedEventId(preferred.id);
+    setDetailsLoading(true);
+
+    fetch(`/api/events/${preferred.id}/public-details`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("failed to load event details");
+        return r.json() as Promise<PublicEventDetails>;
+      })
+      .then((data) => {
+        if (!cancelled) setDetails(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDetails(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate, dayEvents]);
+
+  function fetchDetails(eventId: string) {
+    setExpandedEventId(eventId);
+    setDetailsLoading(true);
+    return fetch(`/api/events/${eventId}/public-details`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("failed to load event details");
+        return r.json() as Promise<PublicEventDetails>;
+      })
+      .then(setDetails)
+      .catch(() => setDetails(null))
+      .finally(() => setDetailsLoading(false));
+  }
 
   function loadDetails(eventId: string) {
-    setExpandedEventId(eventId);
-    fetch(`/api/events/${eventId}/public-details`)
-      .then((r) => r.json())
-      .then(setDetails);
+    if (expandedEventId === eventId && details?.event.id === eventId) {
+      setExpandedEventId(null);
+      setDetails(null);
+      return;
+    }
+
+    void fetchDetails(eventId);
   }
 
   function refresh() {
-    if (expandedEventId) loadDetails(expandedEventId);
+    if (expandedEventId) void fetchDetails(expandedEventId);
     onRefreshCalendar();
   }
 
@@ -103,6 +150,10 @@ export function DateEventPanel({
 
       {dayEvents.map((ev) => {
         const canRegister = isRegistrationOpen(ev.status, selectedDateKey);
+        const isExpanded = expandedEventId === ev.id;
+        const eventDetails = isExpanded && details?.event.id === ev.id ? details : null;
+        const playerCount = eventDetails?.registeredParticipantCount ?? ev.registeredParticipantCount;
+
         return (
         <Card key={ev.id}>
           <CardHeader className="pb-2">
@@ -120,29 +171,26 @@ export function DateEventPanel({
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadDetails(ev.id)}
-            >
-              {expandedEventId === ev.id ? t("hideDetails") : t("showDetails")}
-            </Button>
+            <p className="text-sm font-medium">
+              {t("registeredPlayers")}: {detailsLoading && isExpanded ? t("loading") : playerCount}
+            </p>
 
-            {expandedEventId === ev.id && details?.event.id === ev.id && (
+            {isExpanded && (
               <div className="space-y-3 border-t pt-3">
-                {details.event.notes && (
-                  <p className="text-sm text-muted-foreground">{details.event.notes}</p>
+                {detailsLoading ? (
+                  <p className="text-sm text-muted-foreground">{t("loading")}</p>
+                ) : eventDetails ? (
+                  <>
+                {eventDetails.event.notes && (
+                  <p className="text-sm text-muted-foreground">{eventDetails.event.notes}</p>
                 )}
-                <p className="text-sm font-medium">
-                  {t("registeredPlayers")}: {details.registeredParticipantCount}
-                </p>
                 <ul className="space-y-1 text-sm">
-                  {details.registrations.map((r) => (
+                  {eventDetails.registrations.map((r) => (
                     <li key={r.id} className="flex items-center justify-between gap-2">
                       <span>
                         {r.displayName} — {r.registeredParticipantCount}
                       </span>
-                      {canRegister && details.event.status === "OPEN" && (
+                      {canRegister && eventDetails.event.status === "OPEN" && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -158,7 +206,7 @@ export function DateEventPanel({
                   ))}
                 </ul>
 
-                {canRegister && details.event.status === "OPEN" && (
+                {canRegister && eventDetails.event.status === "OPEN" && (
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => setRegisterOpen(true)}>
                       {t("register")}
@@ -171,7 +219,19 @@ export function DateEventPanel({
                 {!canRegister && ev.status === "OPEN" && (
                   <p className="text-sm text-muted-foreground">{t("registrationClosed")}</p>
                 )}
+                  </>
+                ) : null}
               </div>
+            )}
+
+            {dayEvents.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadDetails(ev.id)}
+              >
+                {isExpanded ? t("hideDetails") : t("showDetails")}
+              </Button>
             )}
           </CardContent>
         </Card>
