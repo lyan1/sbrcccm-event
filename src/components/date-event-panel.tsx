@@ -161,7 +161,7 @@ export function DateEventPanel({
                 {canRegister && details.event.status === "OPEN" && (
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => setRegisterOpen(true)}>
-                      {t("registerSomeone")}
+                      {t("register")}
                     </Button>
                     <Button asChild size="sm" variant="outline">
                       <Link href="/events">{t("bulkRegistration")}</Link>

@@ -70,7 +70,7 @@ export function RegisterSomeoneDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("registerSomeone")}</DialogTitle>
+          <DialogTitle>{t("register")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <MemberAccountPicker
