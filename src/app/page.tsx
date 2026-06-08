@@ -1,35 +1,58 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PublicLayout } from "@/components/public-layout";
 import { EventCalendar } from "@/components/event-calendar";
 import { DateEventPanel } from "@/components/date-event-panel";
-import { PromotionalSection } from "@/components/promotional-section";
+import { PromotionalSection, type PromoCard } from "@/components/promotional-section";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
-import { toDateKey, type CalendarEventSummary } from "@/lib/calendar";
+import { monthRange, toDateKey, type CalendarEventSummary } from "@/lib/calendar";
 
 export default function HomePage() {
   const { t } = useI18n();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventSummary[]>([]);
+  const [promoCards, setPromoCards] = useState<PromoCard[]>([]);
+  const [month, setMonth] = useState(() => new Date());
+  const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const hasAutoSelectedDate = useRef(false);
 
-  const handleEventsLoaded = useCallback((events: CalendarEventSummary[]) => {
-    setCalendarEvents(events);
+  useEffect(() => {
+    const { from, to } = monthRange(month.getFullYear(), month.getMonth());
+    setLoading(true);
 
-    // Select nearest upcoming open event date on first load
-    if (!selectedDate) {
-      const today = toDateKey(new Date());
-      const upcoming = events
-        .filter((e) => e.status === "OPEN" && e.eventDate >= today)
-        .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
-      if (upcoming.length > 0) {
-        setSelectedDate(new Date(`${upcoming[0].eventDate}T12:00:00`));
-      }
-    }
-  }, [selectedDate]);
+    fetch(`/api/home?from=${from}&to=${to}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("home fetch failed");
+        return r.json() as Promise<{ events?: CalendarEventSummary[]; promotions?: PromoCard[] }>;
+      })
+      .then((data) => {
+        const events = data.events ?? [];
+        setCalendarEvents(events);
+        setPromoCards(Array.isArray(data.promotions) ? data.promotions : []);
+
+        if (!hasAutoSelectedDate.current) {
+          const today = toDateKey(new Date());
+          const upcoming = events
+            .filter((e) => e.status === "OPEN" && e.eventDate >= today)
+            .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+          if (upcoming.length > 0) {
+            setSelectedDate(new Date(`${upcoming[0].eventDate}T12:00:00`));
+          }
+          hasAutoSelectedDate.current = true;
+        }
+
+        setLoading(false);
+      })
+      .catch(() => {
+        setCalendarEvents([]);
+        setPromoCards([]);
+        setLoading(false);
+      });
+  }, [month, refreshKey]);
 
   const dayEvents = useMemo(() => {
     if (!selectedDate) return [];
@@ -53,8 +76,10 @@ export default function HomePage() {
           <EventCalendar
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
-            onEventsLoaded={handleEventsLoaded}
-            refreshKey={refreshKey}
+            events={calendarEvents}
+            loading={loading}
+            month={month}
+            onMonthChange={setMonth}
           />
         </section>
 
@@ -75,7 +100,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <PromotionalSection />
+        <PromotionalSection cards={promoCards} />
       </div>
     </PublicLayout>
   );

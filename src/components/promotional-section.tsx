@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 
-interface PromoCard {
+export interface PromoCard {
   id: string;
   titleZh: string;
   titleEn: string | null;
@@ -21,21 +20,13 @@ interface PromoCard {
   endsAt: string | null;
 }
 
-export function PromotionalSection() {
-  const { t, language } = useI18n();
-  const [cards, setCards] = useState<PromoCard[]>([]);
-  const locale = language === "zh" ? "zh-CN" : "en-US";
+interface PromotionalSectionProps {
+  cards: PromoCard[];
+}
 
-  useEffect(() => {
-    fetch("/api/promotions")
-      .then(async (r) => {
-        if (!r.ok) return [];
-        const data = await r.json();
-        return Array.isArray(data) ? data : [];
-      })
-      .then(setCards)
-      .catch(() => setCards([]));
-  }, []);
+export function PromotionalSection({ cards }: PromotionalSectionProps) {
+  const { t, language } = useI18n();
+  const locale = language === "zh" ? "zh-CN" : "en-US";
 
   if (cards.length === 0) return null;
 

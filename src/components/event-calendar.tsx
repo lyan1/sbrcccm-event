@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DayPicker } from "react-day-picker";
 import { zhCN, enUS } from "react-day-picker/locale";
 import {
   buildDateMarkers,
   isPastEventDate,
-  monthRange,
   type CalendarEventSummary,
 } from "@/lib/calendar";
 import { useI18n } from "@/lib/i18n";
@@ -15,36 +14,22 @@ import "react-day-picker/style.css";
 interface EventCalendarProps {
   selectedDate: Date | undefined;
   onSelectDate: (date: Date | undefined) => void;
-  onEventsLoaded?: (events: CalendarEventSummary[]) => void;
-  refreshKey?: number;
+  events: CalendarEventSummary[];
+  loading?: boolean;
+  month: Date;
+  onMonthChange: (month: Date) => void;
 }
 
 export function EventCalendar({
   selectedDate,
   onSelectDate,
-  onEventsLoaded,
-  refreshKey = 0,
+  events,
+  loading = false,
+  month,
+  onMonthChange,
 }: EventCalendarProps) {
   const { language, t } = useI18n();
-  const [month, setMonth] = useState(() => new Date());
-  const [events, setEvents] = useState<CalendarEventSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const locale = language === "zh" ? zhCN : enUS;
-
-  useEffect(() => {
-    const { from, to } = monthRange(month.getFullYear(), month.getMonth());
-    setLoading(true);
-    fetch(`/api/calendar-events?from=${from}&to=${to}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const list = data.events ?? [];
-        setEvents(list);
-        onEventsLoaded?.(list);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [month, refreshKey, onEventsLoaded]);
 
   const markers = useMemo(() => buildDateMarkers(events), [events]);
 
@@ -71,7 +56,7 @@ export function EventCalendar({
         selected={selectedDate}
         onSelect={onSelectDate}
         month={month}
-        onMonthChange={setMonth}
+        onMonthChange={onMonthChange}
         locale={locale}
         modifiers={modifiers}
         modifiersClassNames={{
