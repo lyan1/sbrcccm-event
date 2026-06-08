@@ -84,31 +84,31 @@ export function MemberAccountPicker({
           {t("currentlySelected")}: <span className="font-medium text-foreground">{selectedName}</span>
         </p>
       )}
-      <div className="max-h-40 overflow-y-auto rounded-md border">
-        {query.trim().length === 0 ? (
-          <p className="p-3 text-sm text-muted-foreground">{t("searchPlaceholder")}</p>
-        ) : loading ? (
-          <p className="p-3 text-sm text-muted-foreground">{t("loading")}</p>
-        ) : accounts.length === 0 ? (
-          <p className="p-3 text-sm text-muted-foreground">{t("noResults")}</p>
-        ) : (
-          accounts.map((account) => (
-            <button
-              key={account.id}
-              type="button"
-              onClick={() => {
-                setStoredLabel(account.displayName);
-                onChange(account);
-              }}
-              className={`flex w-full px-3 py-2 text-left text-sm hover:bg-accent ${
-                value === account.id ? "bg-accent font-medium" : ""
-              }`}
-            >
-              {account.displayName}
-            </button>
-          ))
-        )}
-      </div>
+      {query.trim().length > 0 && (
+        <div className="max-h-40 overflow-y-auto rounded-md border">
+          {loading ? (
+            <p className="p-3 text-sm text-muted-foreground">{t("loading")}</p>
+          ) : accounts.length === 0 ? (
+            <p className="p-3 text-sm text-muted-foreground">{t("noResults")}</p>
+          ) : (
+            accounts.map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                onClick={() => {
+                  setStoredLabel(account.displayName);
+                  onChange(account);
+                }}
+                className={`flex w-full px-3 py-2 text-left text-sm hover:bg-accent ${
+                  value === account.id ? "bg-accent font-medium" : ""
+                }`}
+              >
+                {account.displayName}
+              </button>
+            ))
+          )}
+        </div>
+      )}
       <Button asChild variant="link" className="h-auto p-0">
         <Link href="/add-name">{t("addNewName")}</Link>
       </Button>
