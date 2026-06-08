@@ -1,13 +1,26 @@
 import { PrismaClient } from "@prisma/client";
 
-function appendQueryParam(url: string, key: string, value: string): string {
-  const separator = url.includes("?") ? "&" : "?";
-  if (url.includes(`${key}=`)) return url;
-  return `${url}${separator}${key}=${value}`;
-}
-
 function isSupabaseUrl(url: string): boolean {
   return url.includes("supabase.co") || url.includes("supabase.com");
+}
+
+function isSupabasePoolerUrl(url: string): boolean {
+  return isSupabaseUrl(url) && (url.includes(":6543") || url.includes("pooler.supabase.com"));
+}
+
+/**
+ * Normalize pooled Supabase URLs so Prisma disables prepared statements.
+ * Malformed env values (e.g. `postgres??pgbouncer=true`) are parsed incorrectly
+ * and cause "prepared statement already exists" errors on Supavisor.
+ */
+function normalizeSupabasePooledUrl(url: string): string {
+  const parsed = new URL(url);
+  parsed.search = "";
+  parsed.searchParams.set("pgbouncer", "true");
+  parsed.searchParams.set("connection_limit", "1");
+  parsed.searchParams.set("pool_timeout", "30");
+  parsed.searchParams.set("connect_timeout", "15");
+  return parsed.toString();
 }
 
 /**
@@ -29,13 +42,10 @@ function getDatabaseUrl(): string {
     return direct;
   }
 
-  let url = pooled!;
+  const url = pooled!;
 
-  if (isSupabaseUrl(url)) {
-    url = appendQueryParam(url, "pgbouncer", "true");
-    url = appendQueryParam(url, "connection_limit", "1");
-    url = appendQueryParam(url, "pool_timeout", "30");
-    url = appendQueryParam(url, "connect_timeout", "15");
+  if (isSupabasePoolerUrl(url)) {
+    return normalizeSupabasePooledUrl(url);
   }
 
   return url;
@@ -47,14 +57,22 @@ function sleep(ms: number): Promise<void> {
 
 function isRetryableDbError(error: unknown): boolean {
   if (error && typeof error === "object" && "code" in error) {
-    const code = String((error as { code: unknown }).code);
-    return ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(code);
+    const prismaError = error as { code?: unknown; meta?: { code?: unknown } };
+    const code = String(prismaError.code);
+    if (["P1001", "P1002", "P1008", "P1017", "P2024"].includes(code)) {
+      return true;
+    }
+    // Supavisor transaction pooler: prepared statement name collision (42P05)
+    if (code === "P2010" && prismaError.meta?.code === "42P05") {
+      return true;
+    }
   }
   const message = String(error);
   return (
     message.includes("Can't reach database server") ||
     message.includes("connection pool") ||
-    message.includes("Max client connections")
+    message.includes("Max client connections") ||
+    message.includes("prepared statement") && message.includes("already exists")
   );
 }
 
