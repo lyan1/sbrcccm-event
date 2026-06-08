@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model MemberAccount {
+  id           String   @id @default(cuid())
+  displayName  String
+  phone        String?
+  email        String?
+  notes        String?
+  balanceCents Int      @default(0)
+  isActive     Boolean  @default(true)
+
+  registrations EventRegistration[]
+  transactions  Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([displayName])
+  @@index([isActive])
+}
+
+model AdminUser {
+  id           String @id @default(cuid())
+  username     String @unique
+  passwordHash String
+
+  transactions    Transaction[]
+  eventsSettled      PickleballEvent[]  @relation("EventSettledBy")
+  imagesUploaded     AppImage[]
+  balanceSnapshots   BalanceSnapshot[]
+  promotionalCards   PromotionalCard[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PickleballEvent {
+  id    String @id @default(cuid())
+  title String @default("Pickleball")
+
+  eventDate DateTime
+  startTime DateTime
+  endTime   DateTime
+
+  locationName String?
+  address      String?
+  notes        String?
+
+  status EventStatus @default(OPEN)
+
+  totalCostCents               Int?
+  totalActualParticipants      Int?
+  calculatedPerPersonCostCents Int?
+
+  settledAt        DateTime?
+  settledByAdminId String?
+  settledByAdmin   AdminUser? @relation("EventSettledBy", fields: [settledByAdminId], references: [id])
+
+  registrations     EventRegistration[]
+  transactions      Transaction[]
+  balanceSnapshots  BalanceSnapshot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventDate])
+  @@index([status])
+}
+
+enum EventStatus {
+  OPEN
+  CANCELLED
+  COMPLETED
+}
+
+model EventRegistration {
+  id String @id @default(cuid())
+
+  eventId String
+  event   PickleballEvent @relation(fields: [eventId], references: [id])
+
+  memberAccountId String
+  memberAccount   MemberAccount @relation(fields: [memberAccountId], references: [id])
+
+  registeredParticipantCount Int
+  actualParticipantCount     Int?
+
+  status RegistrationStatus @default(REGISTERED)
+
+  memberNote String?
+  adminNote  String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  cancelledAt DateTime?
+
+  @@unique([eventId, memberAccountId])
+  @@index([memberAccountId])
+  @@index([eventId])
+  @@index([status])
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CANCELLED
+}
+
+model Transaction {
+  id String @id @default(cuid())
+
+  memberAccountId String
+  memberAccount   MemberAccount @relation(fields: [memberAccountId], references: [id])
+
+  eventId String?
+  event   PickleballEvent? @relation(fields: [eventId], references: [id])
+
+  amountCents       Int
+  balanceAfterCents Int
+
+  type TransactionType
+
+  paymentMethod PaymentMethod?
+
+  calculatedAmountCents Int?
+  finalAmountCents      Int?
+
+  description String?
+
+  createdByAdminId String?
+  createdByAdmin   AdminUser? @relation(fields: [createdByAdminId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([memberAccountId])
+  @@index([eventId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum TransactionType {
+  PAYMENT
+  GAME_FEE
+  MANUAL_ADJUSTMENT
+  REFUND
+  REVERSAL
+}
+
+enum PaymentMethod {
+  ZELLE
+  VENMO
+  CASH
+  CHECK
+  OTHER
+}
+
+model AppImage {
+  id String @id @default(cuid())
+
+  type ImageType
+
+  title       String
+  description String?
+  imageUrl    String
+  storagePath String?
+  isVisible   Boolean @default(true)
+
+  uploadedByAdminId String
+  uploadedByAdmin   AdminUser @relation(fields: [uploadedByAdminId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([isVisible])
+}
+
+enum ImageType {
+  WECHAT_QR
+  ZELLE_QR
+  VENMO_QR
+  OTHER
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorType AuditActorType
+  actorId   String?
+
+  action     String
+  entityType String
+  entityId   String
+
+  oldValueJson Json?
+  newValueJson Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorType])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum AuditActorType {
+  PUBLIC
+  ADMIN
+}
+
+model PromotionalCard {
+  id String @id @default(cuid())
+
+  titleZh       String
+  titleEn       String?
+  descriptionZh String?
+  descriptionEn String?
+
+  imageUrl    String?
+  storagePath String?
+
+  linkUrl     String?
+  linkLabelZh String?
+  linkLabelEn String?
+
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  isVisible    Boolean @default(true)
+  displayOrder Int     @default(0)
+
+  createdByAdminId String?
+  createdByAdmin   AdminUser? @relation(fields: [createdByAdminId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isVisible])
+  @@index([displayOrder])
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+model BalanceSnapshot {
+  id String @id @default(cuid())
+
+  eventId String?
+  event   PickleballEvent? @relation(fields: [eventId], references: [id])
+
+  generatedByAdminId String
+  generatedByAdmin   AdminUser @relation(fields: [generatedByAdminId], references: [id])
+
+  generatedAt  DateTime @default(now())
+  accountCount Int
+
+  @@index([eventId])
+  @@index([generatedAt])
+}
