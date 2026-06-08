@@ -49,8 +49,12 @@ export default function BalancePage() {
       fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/balance`).then((r) => r.json()),
       fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/transactions?range=${range}`).then((r) => r.json()),
     ]).then(([bal, txns]) => {
-      setBalance(bal.balanceCents);
-      setTransactions(txns);
+      setBalance(typeof bal?.balanceCents === "number" ? bal.balanceCents : null);
+      setTransactions(Array.isArray(txns) ? txns : []);
+      setLoading(false);
+    }).catch(() => {
+      setBalance(null);
+      setTransactions([]);
       setLoading(false);
     });
   }, [memberId, range]);

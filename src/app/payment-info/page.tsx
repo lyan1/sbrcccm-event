@@ -28,9 +28,17 @@ export default function PaymentInfoPage() {
 
   useEffect(() => {
     fetch("/api/payment-info")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return [];
+        const data = await r.json();
+        return Array.isArray(data) ? data : [];
+      })
       .then((data) => {
         setImages(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setImages([]);
         setLoading(false);
       });
   }, []);

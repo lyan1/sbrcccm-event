@@ -28,7 +28,11 @@ export function PromotionalSection() {
 
   useEffect(() => {
     fetch("/api/promotions")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return [];
+        const data = await r.json();
+        return Array.isArray(data) ? data : [];
+      })
       .then(setCards)
       .catch(() => setCards([]));
   }, []);
