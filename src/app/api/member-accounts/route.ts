@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
   try {
     const q = req.nextUrl.searchParams.get("q") ?? undefined;
     const accounts = await withDbRetry(() => searchMemberAccounts(q));
-    return NextResponse.json(accounts);
+    return NextResponse.json(accounts, {
+      headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30" },
+    });
   } catch (error) {
     logDbError("GET /api/member-accounts failed", error);
     return NextResponse.json({ error: "Failed to load member accounts" }, { status: 500 });

@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { RegisterSomeoneDialog } from "@/components/register-someone-dialog";
 import { EditRegistrationDialog } from "@/components/edit-registration-dialog";
 
-interface PublicEventDetails {
+export interface PublicEventDetails {
   event: {
     id: string;
     title: string;
@@ -46,12 +46,14 @@ interface DayEventSummary {
 interface DateEventPanelProps {
   selectedDate: Date | undefined;
   dayEvents: DayEventSummary[];
+  prefetchedDetails?: PublicEventDetails | null;
   onRefreshCalendar: () => void;
 }
 
 export function DateEventPanel({
   selectedDate,
   dayEvents,
+  prefetchedDetails = null,
   onRefreshCalendar,
 }: DateEventPanelProps) {
   const { t, language, tNested } = useI18n();
@@ -73,9 +75,15 @@ export function DateEventPanel({
     }
 
     const preferred = dayEvents.find((e) => e.status === "OPEN") ?? dayEvents[0];
-    let cancelled = false;
-
     setExpandedEventId(preferred.id);
+
+    if (prefetchedDetails?.event.id === preferred.id) {
+      setDetails(prefetchedDetails);
+      setDetailsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     setDetailsLoading(true);
 
     fetch(`/api/events/${preferred.id}/public-details`)
@@ -96,7 +104,7 @@ export function DateEventPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, dayEvents]);
+  }, [selectedDate, dayEvents, prefetchedDetails]);
 
   function fetchDetails(eventId: string) {
     setExpandedEventId(eventId);
@@ -122,7 +130,6 @@ export function DateEventPanel({
   }
 
   function refresh() {
-    if (expandedEventId) void fetchDetails(expandedEventId);
     onRefreshCalendar();
   }
 

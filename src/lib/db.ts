@@ -88,13 +88,13 @@ export function logDbError(context: string, error: unknown): void {
 
 export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      if (!isRetryableDbError(error) || attempt === 2) throw error;
-      await sleep(150 * (attempt + 1));
+      if (!isRetryableDbError(error) || attempt === 4) throw error;
+      await sleep(250 * (attempt + 1));
     }
   }
   throw lastError;

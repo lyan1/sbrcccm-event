@@ -14,12 +14,14 @@ export interface MemberOption {
 
 interface MemberAccountPickerProps {
   value: string;
+  selectedLabel?: string;
   onChange: (member: MemberOption) => void;
   useStoredDefault?: boolean;
 }
 
 export function MemberAccountPicker({
   value,
+  selectedLabel,
   onChange,
   useStoredDefault = true,
 }: MemberAccountPickerProps) {
@@ -27,12 +29,12 @@ export function MemberAccountPicker({
   const [query, setQuery] = useState("");
   const [accounts, setAccounts] = useState<MemberOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [storedLabel, setStoredLabel] = useState<string | undefined>(selectedLabel);
 
   const fetchAccounts = useCallback(async (q: string) => {
     setLoading(true);
     try {
-      const params = q ? `?q=${encodeURIComponent(q)}` : "";
-      const res = await fetch(`/api/member-accounts${params}`);
+      const res = await fetch(`/api/member-accounts?q=${encodeURIComponent(q)}`);
       if (!res.ok) {
         setAccounts([]);
         return;
@@ -47,17 +49,28 @@ export function MemberAccountPicker({
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchAccounts(query), 300);
+    const trimmed = query.trim();
+    if (trimmed.length === 0) {
+      setAccounts([]);
+      setLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(() => fetchAccounts(trimmed), 300);
     return () => clearTimeout(timer);
   }, [query, fetchAccounts]);
 
   useEffect(() => {
     if (!useStoredDefault || value) return;
     const stored = getSelectedMember();
-    if (stored) onChange(stored);
+    if (stored) {
+      setStoredLabel(stored.displayName);
+      onChange(stored);
+    }
   }, [useStoredDefault, value, onChange]);
 
-  const selected = accounts.find((a) => a.id === value);
+  const selectedName =
+    accounts.find((a) => a.id === value)?.displayName ?? storedLabel ?? selectedLabel;
 
   return (
     <div className="space-y-2">
@@ -66,13 +79,15 @@ export function MemberAccountPicker({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      {selected && (
+      {value && selectedName && (
         <p className="text-sm text-muted-foreground">
-          {t("currentlySelected")}: <span className="font-medium text-foreground">{selected.displayName}</span>
+          {t("currentlySelected")}: <span className="font-medium text-foreground">{selectedName}</span>
         </p>
       )}
       <div className="max-h-40 overflow-y-auto rounded-md border">
-        {loading ? (
+        {query.trim().length === 0 ? (
+          <p className="p-3 text-sm text-muted-foreground">{t("searchPlaceholder")}</p>
+        ) : loading ? (
           <p className="p-3 text-sm text-muted-foreground">{t("loading")}</p>
         ) : accounts.length === 0 ? (
           <p className="p-3 text-sm text-muted-foreground">{t("noResults")}</p>
@@ -81,7 +96,10 @@ export function MemberAccountPicker({
             <button
               key={account.id}
               type="button"
-              onClick={() => onChange(account)}
+              onClick={() => {
+                setStoredLabel(account.displayName);
+                onChange(account);
+              }}
               className={`flex w-full px-3 py-2 text-left text-sm hover:bg-accent ${
                 value === account.id ? "bg-accent font-medium" : ""
               }`}

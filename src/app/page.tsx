@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PublicLayout } from "@/components/public-layout";
 import { EventCalendar } from "@/components/event-calendar";
-import { DateEventPanel } from "@/components/date-event-panel";
+import { DateEventPanel, type PublicEventDetails } from "@/components/date-event-panel";
 import { PromotionalSection, type PromoCard } from "@/components/promotional-section";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
@@ -16,24 +16,36 @@ export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventSummary[]>([]);
   const [promoCards, setPromoCards] = useState<PromoCard[]>([]);
+  const [featuredEventDetails, setFeaturedEventDetails] = useState<PublicEventDetails | null>(null);
   const [month, setMonth] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const hasAutoSelectedDate = useRef(false);
+  const selectedDateKey = selectedDate ? toDateKey(selectedDate) : undefined;
 
   useEffect(() => {
     const { from, to } = monthRange(month.getFullYear(), month.getMonth());
     setLoading(true);
 
-    fetch(`/api/home?from=${from}&to=${to}`)
+    const params = new URLSearchParams({ from, to });
+    if (refreshKey > 0 && selectedDateKey) {
+      params.set("featuredDate", selectedDateKey);
+    }
+
+    fetch(`/api/home?${params}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("home fetch failed");
-        return r.json() as Promise<{ events?: CalendarEventSummary[]; promotions?: PromoCard[] }>;
+        return r.json() as Promise<{
+          events?: CalendarEventSummary[];
+          promotions?: PromoCard[];
+          featuredEventDetails?: PublicEventDetails | null;
+        }>;
       })
       .then((data) => {
         const events = data.events ?? [];
         setCalendarEvents(events);
         setPromoCards(Array.isArray(data.promotions) ? data.promotions : []);
+        setFeaturedEventDetails(data.featuredEventDetails ?? null);
 
         if (!hasAutoSelectedDate.current) {
           const today = toDateKey(new Date());
@@ -51,6 +63,7 @@ export default function HomePage() {
       .catch(() => {
         setCalendarEvents([]);
         setPromoCards([]);
+        setFeaturedEventDetails(null);
         setLoading(false);
       });
   }, [month, refreshKey]);
@@ -87,6 +100,7 @@ export default function HomePage() {
         <DateEventPanel
           selectedDate={selectedDate}
           dayEvents={dayEvents}
+          prefetchedDetails={featuredEventDetails}
           onRefreshCalendar={() => setRefreshKey((k) => k + 1)}
         />
 
