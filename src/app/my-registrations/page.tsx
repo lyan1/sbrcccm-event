@@ -51,14 +51,21 @@ export default function MyRegistrationsPage() {
   function load() {
     if (!memberId) return;
     setLoading(true);
-    Promise.all([
-      fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/registrations?scope=upcoming`).then((r) => r.json()),
-      fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/registrations?scope=past`).then((r) => r.json()),
-    ]).then(([u, p]) => {
-      setUpcoming(u);
-      setPast(p);
-      setLoading(false);
-    });
+    fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/registrations?scope=split`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("registrations failed");
+        return r.json() as Promise<{ upcoming?: Registration[]; past?: Registration[] }>;
+      })
+      .then((data) => {
+        setUpcoming(Array.isArray(data.upcoming) ? data.upcoming : []);
+        setPast(Array.isArray(data.past) ? data.past : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setUpcoming([]);
+        setPast([]);
+        setLoading(false);
+      });
   }
 
   useEffect(() => {

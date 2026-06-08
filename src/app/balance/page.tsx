@@ -45,18 +45,21 @@ export default function BalancePage() {
       return;
     }
     setLoading(true);
-    Promise.all([
-      fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/balance`).then((r) => r.json()),
-      fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/transactions?range=${range}`).then((r) => r.json()),
-    ]).then(([bal, txns]) => {
-      setBalance(typeof bal?.balanceCents === "number" ? bal.balanceCents : null);
-      setTransactions(Array.isArray(txns) ? txns : []);
-      setLoading(false);
-    }).catch(() => {
-      setBalance(null);
-      setTransactions([]);
-      setLoading(false);
-    });
+    fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/balance-summary?range=${range}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("balance summary failed");
+        return r.json() as Promise<{ balanceCents?: number; transactions?: Transaction[] }>;
+      })
+      .then((data) => {
+        setBalance(typeof data.balanceCents === "number" ? data.balanceCents : null);
+        setTransactions(Array.isArray(data.transactions) ? data.transactions : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setBalance(null);
+        setTransactions([]);
+        setLoading(false);
+      });
   }, [memberId, range]);
 
   return (

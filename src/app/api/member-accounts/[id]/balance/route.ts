@@ -1,23 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { logDbError, withDbRetry } from "@/lib/db";
+import { getMemberBalance } from "@/lib/queries/member-accounts";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const account = await prisma.memberAccount.findUnique({
-    where: { id },
-    select: { id: true, displayName: true, balanceCents: true, isActive: true },
-  });
+  try {
+    const { id } = await params;
+    const balance = await withDbRetry(() => getMemberBalance(id));
 
-  if (!account) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!balance) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(balance);
+  } catch (error) {
+    logDbError("GET /api/member-accounts/[id]/balance failed", error);
+    return NextResponse.json({ error: "Failed to load balance" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    memberAccountId: account.id,
-    displayName: account.displayName,
-    balanceCents: account.balanceCents,
-  });
 }

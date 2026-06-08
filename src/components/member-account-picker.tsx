@@ -30,11 +30,20 @@ export function MemberAccountPicker({
 
   const fetchAccounts = useCallback(async (q: string) => {
     setLoading(true);
-    const params = q ? `?q=${encodeURIComponent(q)}` : "";
-    const res = await fetch(`/api/member-accounts${params}`);
-    const data = await res.json();
-    setAccounts(data);
-    setLoading(false);
+    try {
+      const params = q ? `?q=${encodeURIComponent(q)}` : "";
+      const res = await fetch(`/api/member-accounts${params}`);
+      if (!res.ok) {
+        setAccounts([]);
+        return;
+      }
+      const data = await res.json();
+      setAccounts(Array.isArray(data) ? data : []);
+    } catch {
+      setAccounts([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

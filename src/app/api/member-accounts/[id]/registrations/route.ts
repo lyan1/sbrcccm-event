@@ -1,46 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { logDbError, withDbRetry } from "@/lib/db";
+import {
+  getMemberRegistrations,
+  splitRegistrationsByScope,
+} from "@/lib/queries/member-accounts";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const scope = req.nextUrl.searchParams.get("scope") ?? "all";
-  const now = new Date();
+  try {
+    const { id } = await params;
+    const scope = req.nextUrl.searchParams.get("scope") ?? "all";
 
-  const registrations = await prisma.eventRegistration.findMany({
-    where: { memberAccountId: id },
-    include: {
-      event: true,
-    },
-    orderBy: { event: { eventDate: "desc" } },
-  });
-
-  const filtered = registrations.filter((r) => {
-    if (scope === "upcoming") {
-      return r.event.status === "OPEN" && r.event.eventDate >= now;
+    if (scope === "split") {
+      const all = await withDbRetry(() => getMemberRegistrations(id, "all"));
+      const { upcoming, past } = splitRegistrationsByScope(all);
+      return NextResponse.json({ upcoming, past });
     }
-    if (scope === "past") {
-      return r.event.status !== "OPEN" || r.event.eventDate < now;
-    }
-    return true;
-  });
 
-  return NextResponse.json(
-    filtered.map((r) => ({
-      id: r.id,
-      registeredParticipantCount: r.registeredParticipantCount,
-      status: r.status,
-      event: {
-        id: r.event.id,
-        title: r.event.title,
-        eventDate: r.event.eventDate,
-        startTime: r.event.startTime,
-        endTime: r.event.endTime,
-        locationName: r.event.locationName,
-        status: r.event.status,
-      },
-    }))
-  );
+    const registrations = await withDbRetry(() => getMemberRegistrations(id, scope));
+    return NextResponse.json(registrations);
+  } catch (error) {
+    logDbError("GET /api/member-accounts/[id]/registrations failed", error);
+    return NextResponse.json({ error: "Failed to load registrations" }, { status: 500 });
+  }
 }

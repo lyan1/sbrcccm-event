@@ -1,37 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { getDateRangeStart } from "@/lib/utils";
+import { logDbError, withDbRetry } from "@/lib/db";
+import { getMemberTransactions } from "@/lib/queries/member-accounts";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const range = req.nextUrl.searchParams.get("range") ?? "3m";
-  const from = getDateRangeStart(range);
-
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      memberAccountId: id,
-      ...(from ? { createdAt: { gte: from } } : {}),
-    },
-    include: {
-      event: { select: { title: true, eventDate: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(
-    transactions.map((t) => ({
-      id: t.id,
-      type: t.type,
-      amountCents: t.amountCents,
-      balanceAfterCents: t.balanceAfterCents,
-      eventTitle: t.event?.title,
-      eventDate: t.event?.eventDate,
-      paymentMethod: t.paymentMethod,
-      description: t.description,
-      createdAt: t.createdAt,
-    }))
-  );
+  try {
+    const { id } = await params;
+    const range = req.nextUrl.searchParams.get("range") ?? "3m";
+    const transactions = await withDbRetry(() => getMemberTransactions(id, range));
+    return NextResponse.json(transactions);
+  } catch (error) {
+    logDbError("GET /api/member-accounts/[id]/transactions failed", error);
+    return NextResponse.json({ error: "Failed to load transactions" }, { status: 500 });
+  }
 }

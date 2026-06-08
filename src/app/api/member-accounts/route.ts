@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { logDbError, prisma, withDbRetry } from "@/lib/db";
+import { searchMemberAccounts } from "@/lib/queries/member-accounts";
 import { createMemberSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("q")?.trim();
-
-  const accounts = await prisma.memberAccount.findMany({
-    where: {
-      isActive: true,
-      ...(q ? { displayName: { contains: q, mode: "insensitive" } } : {}),
-    },
-    select: { id: true, displayName: true },
-    orderBy: { displayName: "asc" },
-  });
-
-  return NextResponse.json(accounts);
+  try {
+    const q = req.nextUrl.searchParams.get("q") ?? undefined;
+    const accounts = await withDbRetry(() => searchMemberAccounts(q));
+    return NextResponse.json(accounts);
+  } catch (error) {
+    logDbError("GET /api/member-accounts failed", error);
+    return NextResponse.json({ error: "Failed to load member accounts" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -28,16 +25,18 @@ export async function POST(req: NextRequest) {
 
     const { displayName, phone, email, notes } = parsed.data;
 
-    const account = await prisma.memberAccount.create({
-      data: {
-        displayName: displayName.trim(),
-        phone: phone || null,
-        email: email || null,
-        notes: notes || null,
-        balanceCents: 0,
-        isActive: true,
-      },
-    });
+    const account = await withDbRetry(() =>
+      prisma.memberAccount.create({
+        data: {
+          displayName: displayName.trim(),
+          phone: phone || null,
+          email: email || null,
+          notes: notes || null,
+          balanceCents: 0,
+          isActive: true,
+        },
+      })
+    );
 
     await logAudit({
       actorType: "PUBLIC",
@@ -52,7 +51,8 @@ export async function POST(req: NextRequest) {
       displayName: account.displayName,
       balanceCents: account.balanceCents,
     });
-  } catch {
+  } catch (error) {
+    logDbError("POST /api/member-accounts failed", error);
     return NextResponse.json({ error: "Failed to create account" }, { status: 500 });
   }
 }
