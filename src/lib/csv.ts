@@ -54,3 +54,97 @@ export function parseContentDispositionFilename(header: string | null): string |
   const match = header.match(/filename="?([^";\n]+)"?/);
   return match?.[1] ?? null;
 }
+
+export function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      fields.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+
+  fields.push(current);
+  return fields;
+}
+
+export type MemberImportErrorCode =
+  | "EMPTY_NAME"
+  | "NAME_TOO_LONG"
+  | "INVALID_BALANCE"
+  | "WRONG_COLUMN_COUNT";
+
+export type ParsedMemberImportLine =
+  | { line: number; kind: "row"; displayName: string; balanceCents: number }
+  | { line: number; kind: "error"; reason: MemberImportErrorCode; displayName?: string };
+
+export function parseBalanceDollars(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const dollars = Number(trimmed);
+  if (!Number.isFinite(dollars)) return null;
+  return Math.round(dollars * 100);
+}
+
+export function parseMemberImportCsv(text: string): ParsedMemberImportLine[] {
+  const normalized = text.replace(/^\uFEFF/, "");
+  const rawLines = normalized.split(/\r?\n/);
+  const results: ParsedMemberImportLine[] = [];
+
+  for (let index = 0; index < rawLines.length; index++) {
+    const lineNumber = index + 1;
+    const line = rawLines[index];
+    if (!line.trim()) continue;
+
+    const fields = parseCsvLine(line).map((field) => field.trim());
+    if (fields.length !== 2) {
+      results.push({ line: lineNumber, kind: "error", reason: "WRONG_COLUMN_COUNT" });
+      continue;
+    }
+
+    const [nameField, balanceField] = fields;
+    const displayName = nameField.trim();
+    if (!displayName) {
+      results.push({ line: lineNumber, kind: "error", reason: "EMPTY_NAME" });
+      continue;
+    }
+    if (displayName.length > 200) {
+      results.push({ line: lineNumber, kind: "error", reason: "NAME_TOO_LONG", displayName });
+      continue;
+    }
+
+    const balanceCents = parseBalanceDollars(balanceField);
+    if (balanceCents === null) {
+      results.push({
+        line: lineNumber,
+        kind: "error",
+        reason: "INVALID_BALANCE",
+        displayName,
+      });
+      continue;
+    }
+
+    results.push({ line: lineNumber, kind: "row", displayName, balanceCents });
+  }
+
+  return results;
+}
