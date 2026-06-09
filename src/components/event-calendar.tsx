@@ -5,7 +5,8 @@ import { DayPicker } from "react-day-picker";
 import { zhCN, enUS } from "react-day-picker/locale";
 import {
   buildDateMarkers,
-  isPastEventDate,
+  isCalendarDateAvailable,
+  isCalendarDateClosed,
   type CalendarEventSummary,
 } from "@/lib/calendar";
 import { useI18n } from "@/lib/i18n";
@@ -36,16 +37,12 @@ export function EventCalendar({
   const modifiers = useMemo(() => {
     const open: Date[] = [];
     const openPast: Date[] = [];
-    const completed: Date[] = [];
     markers.forEach((m) => {
       const d = new Date(`${m.date}T12:00:00`);
-      if (m.openCount > 0) {
-        if (isPastEventDate(m.date)) openPast.push(d);
-        else open.push(d);
-      }
-      if (m.completedCount > 0 && m.openCount === 0) completed.push(d);
+      if (isCalendarDateAvailable(m)) open.push(d);
+      if (isCalendarDateClosed(m)) openPast.push(d);
     });
-    return { open, openPast, completed };
+    return { open, openPast };
   }, [markers]);
 
   const monthKey = `${month.getFullYear()}-${month.getMonth()}`;
@@ -68,7 +65,6 @@ export function EventCalendar({
           modifiersClassNames={{
             open: "event-day-open",
             openPast: "event-day-open-past",
-            completed: "event-day-completed",
           }}
           className="w-full"
         />

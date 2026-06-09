@@ -13,7 +13,10 @@ export async function getCalendarEvents(from: string, to: string) {
     orderBy: [{ eventDate: "asc" }, { startTime: "asc" }],
     include: {
       registrations: {
-        where: { status: "REGISTERED" },
+        where: {
+          status: "REGISTERED",
+          memberAccount: { isActive: true },
+        },
         select: { registeredParticipantCount: true },
       },
     },
@@ -26,6 +29,7 @@ export async function getCalendarEvents(from: string, to: string) {
     startTime: formatEventTimeKey(event.startTime),
     endTime: formatEventTimeKey(event.endTime),
     locationName: event.locationName,
+    address: event.address,
     status: event.status,
     registeredParticipantCount: event.registrations.reduce(
       (sum, r) => sum + r.registeredParticipantCount,

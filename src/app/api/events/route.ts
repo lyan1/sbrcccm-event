@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { startOfToday } from "@/lib/calendar";
-
 export async function GET(req: NextRequest) {
   try {
     const memberAccountId = req.nextUrl.searchParams.get("memberAccountId");
-    const today = startOfToday();
+    const now = new Date();
 
     const events = await prisma.pickleballEvent.findMany({
       where: {
         status: "OPEN",
-        eventDate: { gte: today },
+        endTime: { gte: now },
       },
       orderBy: { eventDate: "asc" },
     });

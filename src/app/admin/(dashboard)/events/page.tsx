@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/lib/i18n";
 import { formatDate, formatTime } from "@/lib/utils";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { APP_TIMEZONE, formatEventDateKey, formatEventTimeKey } from "@/lib/timezone";
+import { getAdminEventDisplayStatus } from "@/lib/calendar";
 
 interface Event {
   id: string;
@@ -45,9 +46,10 @@ export default function AdminEventsPage() {
         <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t("all")}</SelectItem>
-          <SelectItem value="OPEN">{tNested("eventStatuses.OPEN")}</SelectItem>
-          <SelectItem value="COMPLETED">{tNested("eventStatuses.COMPLETED")}</SelectItem>
-          <SelectItem value="CANCELLED">{tNested("eventStatuses.CANCELLED")}</SelectItem>
+          <SelectItem value="OPEN">{tNested("adminEventStatuses.OPEN")}</SelectItem>
+          <SelectItem value="CLOSED">{tNested("adminEventStatuses.CLOSED")}</SelectItem>
+          <SelectItem value="COMPLETED">{tNested("adminEventStatuses.COMPLETED")}</SelectItem>
+          <SelectItem value="CANCELLED">{tNested("adminEventStatuses.CANCELLED")}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -74,7 +76,15 @@ export default function AdminEventsPage() {
                 <td className="p-3">{e.title}</td>
                 <td className="p-3">{e.locationName ?? "—"}</td>
                 <td className="p-3">
-                  <Badge variant="outline">{tNested(`eventStatuses.${e.status}`)}</Badge>
+                  <Badge variant="outline">
+                    {tNested(
+                      `adminEventStatuses.${getAdminEventDisplayStatus(
+                        e.status,
+                        formatEventDateKey(new Date(e.eventDate)),
+                        formatEventTimeKey(new Date(e.endTime))
+                      )}`
+                    )}
+                  </Badge>
                 </td>
                 <td className="p-3">
                   <Link href={`/admin/events/${e.id}`} className="text-primary hover:underline">{t("edit")}</Link>

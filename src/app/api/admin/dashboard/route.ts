@@ -20,12 +20,12 @@ export async function GET() {
     negativeBalanceAccounts,
   ] = await Promise.all([
     prisma.pickleballEvent.findMany({
-      where: { status: "OPEN", eventDate: { gte: now } },
+      where: { status: "OPEN", endTime: { gte: now } },
       orderBy: { eventDate: "asc" },
       take: 5,
     }),
     prisma.pickleballEvent.findMany({
-      where: { status: "OPEN", eventDate: { lt: now } },
+      where: { status: "OPEN", endTime: { lt: now } },
       orderBy: { eventDate: "desc" },
       take: 10,
     }),

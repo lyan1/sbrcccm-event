@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
+import { isRegistrationOpenForEvent } from "@/lib/calendar";
 
 export async function POST(
   _req: NextRequest,
@@ -13,7 +14,7 @@ export async function POST(
   const { id } = await params;
   const event = await prisma.pickleballEvent.findUnique({ where: { id } });
   if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (event.status !== "OPEN") {
+  if (!isRegistrationOpenForEvent(event)) {
     return NextResponse.json({ error: "Only open events can be cancelled" }, { status: 400 });
   }
 

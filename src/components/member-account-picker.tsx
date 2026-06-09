@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
-import { getSelectedMember } from "@/lib/member-storage";
+import { getSelectedMember, clearSelectedMember } from "@/lib/member-storage";
 
 export interface MemberOption {
   id: string;
@@ -63,10 +63,20 @@ export function MemberAccountPicker({
   useEffect(() => {
     if (!useStoredDefault || value) return;
     const stored = getSelectedMember();
-    if (stored) {
-      setStoredLabel(stored.displayName);
-      onChange(stored);
-    }
+    if (!stored) return;
+
+    fetch(`/api/member-accounts?q=${encodeURIComponent(stored.displayName)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: MemberOption[]) => {
+        const match = Array.isArray(data) && data.find((a) => a.id === stored.id);
+        if (match) {
+          setStoredLabel(match.displayName);
+          onChange(match);
+        } else {
+          clearSelectedMember();
+        }
+      })
+      .catch(() => clearSelectedMember());
   }, [useStoredDefault, value, onChange]);
 
   const selectedName =

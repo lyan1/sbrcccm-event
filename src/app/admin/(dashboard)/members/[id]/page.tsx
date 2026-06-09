@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,10 @@ import { formatCents, formatDate } from "@/lib/utils";
 export default function AdminMemberDetailPage() {
   const { t, tNested } = useI18n();
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
+  const [deleteError, setDeleteError] = useState("");
+  const [message, setMessage] = useState("");
 
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState(false);
@@ -53,11 +56,23 @@ export default function AdminMemberDetailPage() {
 
   async function toggleActive() {
     const isActive = !(account as { isActive: boolean }).isActive;
-    await fetch(`/api/admin/member-accounts/${id}`, {
+    setMessage("");
+    const res = await fetch(`/api/admin/member-accounts/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive }),
     });
+    if (res.ok) {
+      const data = await res.json();
+      if (!isActive && data.cancelledRegistrationCount > 0) {
+        setMessage(
+          t("memberDeactivatedRegistrationsCancelled").replace(
+            "{count}",
+            String(data.cancelledRegistrationCount)
+          )
+        );
+      }
+    }
     load();
   }
 
@@ -75,6 +90,20 @@ export default function AdminMemberDetailPage() {
     });
     setPaymentAmount("");
     load();
+  }
+
+  async function handleDelete() {
+    if (!confirm(t("confirmDeleteMember"))) return;
+    setDeleteError("");
+    const res = await fetch(`/api/admin/member-accounts/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(
+        data.error === "MEMBER_DELETE_BLOCKED" ? t("deleteMemberBlocked") : t("error")
+      );
+      return;
+    }
+    router.push("/admin/members");
   }
 
   async function handleAdjustment(e: React.FormEvent) {
@@ -135,8 +164,12 @@ export default function AdminMemberDetailPage() {
           <Button variant="outline" onClick={toggleActive}>
             {acc.isActive ? t("deactivate") : t("reactivate")}
           </Button>
+          <Button variant="destructive" onClick={handleDelete}>{t("delete")}</Button>
         </div>
       </div>
+
+      {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+      {message && <p className="text-sm text-green-700">{message}</p>}
 
       {editing && (
         <Card>

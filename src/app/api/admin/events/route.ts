@@ -14,10 +14,20 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get("status");
   const from = req.nextUrl.searchParams.get("from");
   const to = req.nextUrl.searchParams.get("to");
+  const now = new Date();
+
+  const statusFilter =
+    status === "CLOSED"
+      ? { status: "OPEN" as const, endTime: { lt: now } }
+      : status === "OPEN"
+        ? { status: "OPEN" as const, endTime: { gte: now } }
+        : status
+          ? { status: status as "CANCELLED" | "COMPLETED" }
+          : {};
 
   const events = await prisma.pickleballEvent.findMany({
     where: {
-      ...(status ? { status: status as "OPEN" | "CANCELLED" | "COMPLETED" } : {}),
+      ...statusFilter,
       ...(from || to
         ? {
             eventDate: {

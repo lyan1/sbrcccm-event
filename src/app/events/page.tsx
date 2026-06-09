@@ -22,6 +22,7 @@ interface EventItem {
   startTime: string;
   endTime: string;
   locationName: string | null;
+  address: string | null;
   expectedParticipantCount: number;
   selectedAccountRegistration: {
     registeredParticipantCount: number;
@@ -156,6 +157,9 @@ export default function EventsPage() {
                           {formatTime(event.endTime, locale, APP_TIMEZONE)}
                         </p>
                         {event.locationName && <p className="text-sm">{event.locationName}</p>}
+                        {event.address && (
+                          <p className="text-sm text-muted-foreground">{event.address}</p>
+                        )}
                         {event.selectedAccountRegistration && (
                           <Badge variant="success" className="mt-2">
                             {t("alreadyRegistered")} ({event.selectedAccountRegistration.registeredParticipantCount})

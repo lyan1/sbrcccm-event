@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/lib/i18n";
 import { formatDate, formatTime } from "@/lib/utils";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { APP_TIMEZONE, formatEventDateKey, formatEventTimeKey } from "@/lib/timezone";
+import { getEventDisplayStatus, isRegistrationOpen } from "@/lib/calendar";
 import { getSelectedMember, setSelectedMember } from "@/lib/member-storage";
 
 interface Registration {
@@ -89,12 +90,19 @@ export default function MyRegistrationsPage() {
   }
 
   function canModify(reg: Registration) {
-    return reg.event.status === "OPEN" && reg.status === "REGISTERED";
+    const eventDate = formatEventDateKey(new Date(reg.event.eventDate));
+    const endTime = formatEventTimeKey(new Date(reg.event.endTime));
+    return (
+      isRegistrationOpen(reg.event.status, eventDate, endTime) &&
+      reg.status === "REGISTERED"
+    );
   }
 
-  function RegistrationCard({ reg, isPast }: { reg: Registration; isPast: boolean }) {
-    const modifiable = !isPast && canModify(reg);
-    const eventStatus = isPast ? "CLOSED" : reg.event.status;
+  function RegistrationCard({ reg }: { reg: Registration }) {
+    const eventDate = formatEventDateKey(new Date(reg.event.eventDate));
+    const endTime = formatEventTimeKey(new Date(reg.event.endTime));
+    const modifiable = canModify(reg);
+    const eventStatus = getEventDisplayStatus(reg.event.status, eventDate, endTime);
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -197,7 +205,7 @@ export default function MyRegistrationsPage() {
               ) : (
                 <div className="space-y-3">
                   {upcoming.map((r) => (
-                    <RegistrationCard key={r.id} reg={r} isPast={false} />
+                    <RegistrationCard key={r.id} reg={r} />
                   ))}
                 </div>
               )}
@@ -210,7 +218,7 @@ export default function MyRegistrationsPage() {
               ) : (
                 <div className="space-y-3">
                   {past.map((r) => (
-                    <RegistrationCard key={r.id} reg={r} isPast={true} />
+                    <RegistrationCard key={r.id} reg={r} />
                   ))}
                 </div>
               )}

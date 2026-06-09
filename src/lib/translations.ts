@@ -59,7 +59,13 @@ export const translations = {
       OPEN: "开放",
       CLOSED: "关闭",
       CANCELLED: "已取消",
-      COMPLETED: "已完成",
+      COMPLETED: "已结算",
+    },
+    adminEventStatuses: {
+      OPEN: "开放",
+      CLOSED: "已关闭",
+      CANCELLED: "已取消",
+      COMPLETED: "已结算",
     },
     transactionTypes: {
       PAYMENT: "付款",
@@ -149,7 +155,7 @@ export const translations = {
     type: "类型",
     createdAt: "创建时间",
     actions: "操作",
-    confirmSettlementWarning: "确认结算后将扣费并标记活动为已完成，此操作不可撤销。",
+    confirmSettlementWarning: "确认结算后将扣费并标记活动为已结算，此操作不可撤销。",
     settlementSuccess: "结算完成",
     noTransactions: "暂无交易记录",
     noRegistrations: "暂无报名记录",
@@ -198,11 +204,14 @@ export const translations = {
     locationsHint: "维护常用活动地点。创建活动时可自动补全地址，新地点会在创建活动时自动加入。",
     noLocations: "暂无地点",
     confirmDeleteLocation: "确定删除此地点吗？不会影响已有活动记录。",
+    confirmDeleteMember: "确定删除此成员吗？仅可删除无任何交易和报名记录的成员。",
+    deleteMemberBlocked: "该成员有交易、报名记录或非零余额，无法删除。可改用「停用」。",
+    memberDeactivatedRegistrationsCancelled: "成员已停用，已自动取消 {count} 条未结束活动的报名。",
     editEvent: "编辑活动",
     eventUpdated: "活动已更新",
     locationAddressRequired: "请填写地点和地址",
     settlementCsvFailed: "结算成功，但 CSV 下载失败。请使用「下载当前余额 CSV」重试。",
-    settlementConfirmDetail: "此操作将扣除余额、把活动标记为已完成，并下载扣费后的余额备份。该活动不能重复结算。",
+    settlementConfirmDetail: "此操作将扣除余额、把活动标记为已结算，并下载扣费后的余额备份。该活动不能重复结算。",
     manageRegistrationsHint: "选择任意成员/家庭账户，查看或修改其报名记录。",
   },
   en: {
@@ -263,7 +272,13 @@ export const translations = {
       OPEN: "Open",
       CLOSED: "Closed",
       CANCELLED: "Cancelled",
-      COMPLETED: "Completed",
+      COMPLETED: "Settled",
+    },
+    adminEventStatuses: {
+      OPEN: "Open",
+      CLOSED: "Closed",
+      CANCELLED: "Cancelled",
+      COMPLETED: "Settled",
     },
     transactionTypes: {
       PAYMENT: "Payment",
@@ -354,7 +369,7 @@ export const translations = {
     createdAt: "Created",
     actions: "Actions",
     confirmSettlementWarning:
-      "Settlement will deduct fees and mark the event as completed. This cannot be undone.",
+      "Settlement will deduct fees and mark the event as settled. This cannot be undone.",
     settlementSuccess: "Settlement completed",
     noTransactions: "No transactions",
     noRegistrations: "No registrations",
@@ -403,11 +418,17 @@ export const translations = {
     locationsHint: "Manage common event venues. Addresses auto-fill when creating events; new venues are saved automatically.",
     noLocations: "No locations yet",
     confirmDeleteLocation: "Delete this location? Existing events are not affected.",
+    confirmDeleteMember:
+      "Delete this member? Only members with no transactions, registrations, or balance can be deleted.",
+    deleteMemberBlocked:
+      "This member has transactions, registrations, or a non-zero balance and cannot be deleted. Use Deactivate instead.",
+    memberDeactivatedRegistrationsCancelled:
+      "Member deactivated. {count} upcoming registration(s) were cancelled automatically.",
     editEvent: "Edit Event",
     eventUpdated: "Event updated",
     locationAddressRequired: "Location and address are required",
     settlementCsvFailed: "Settlement succeeded but CSV download failed. Use Download Current Balance CSV to retry.",
-    settlementConfirmDetail: "This will deduct balances, mark the event completed, and download a post-settlement balance backup. This cannot be repeated.",
+    settlementConfirmDetail: "This will deduct balances, mark the event as settled, and download a post-settlement balance backup. This cannot be repeated.",
     manageRegistrationsHint: "Select any member/family account to view or manage their registrations.",
   },
 } as const;

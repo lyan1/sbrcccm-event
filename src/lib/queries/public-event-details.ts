@@ -30,7 +30,10 @@ export async function getPublicEventDetails(
     where: { id: eventId },
     include: {
       registrations: {
-        where: { status: "REGISTERED" },
+        where: {
+          status: "REGISTERED",
+          memberAccount: { isActive: true },
+        },
         include: {
           memberAccount: { select: { id: true, displayName: true, isActive: true } },
         },

@@ -26,6 +26,7 @@ export default function AdminMembersPage() {
   const [negativeOnly, setNegativeOnly] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [error, setError] = useState("");
 
   function load() {
     const params = new URLSearchParams();
@@ -41,6 +42,20 @@ export default function AdminMembersPage() {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [q, isActive, negativeOnly]);
+
+  async function handleDelete(id: string) {
+    if (!confirm(t("confirmDeleteMember"))) return;
+    setError("");
+    const res = await fetch(`/api/admin/member-accounts/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(
+        data.error === "MEMBER_DELETE_BLOCKED" ? t("deleteMemberBlocked") : t("error")
+      );
+      return;
+    }
+    load();
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -84,6 +99,8 @@ export default function AdminMembersPage() {
         </label>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted">
@@ -109,7 +126,12 @@ export default function AdminMembersPage() {
                 <td className="p-3">{m.isActive ? t("active") : t("inactive")}</td>
                 <td className="p-3">{formatDate(m.createdAt)}</td>
                 <td className="p-3">
-                  <Link href={`/admin/members/${m.id}`} className="text-primary hover:underline">{t("edit")}</Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/admin/members/${m.id}`} className="text-primary hover:underline">{t("edit")}</Link>
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(m.id)}>
+                      {t("delete")}
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

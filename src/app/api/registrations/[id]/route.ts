@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { updateRegistrationSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
-import { startOfToday } from "@/lib/calendar";
+import { isRegistrationOpenForEvent } from "@/lib/calendar";
 
 export async function PATCH(
   req: NextRequest,
@@ -22,8 +22,7 @@ export async function PATCH(
     });
 
     if (!reg) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const today = startOfToday();
-    if (reg.event.status !== "OPEN" || reg.event.eventDate < today) {
+    if (!isRegistrationOpenForEvent(reg.event)) {
       return NextResponse.json({ error: "Event is not open for changes" }, { status: 400 });
     }
     if (reg.status === "CANCELLED") {

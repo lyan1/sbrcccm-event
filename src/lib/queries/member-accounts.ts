@@ -1,5 +1,38 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getDateRangeStart } from "@/lib/utils";
+
+type TxClient = Prisma.TransactionClient;
+
+export async function cancelUpcomingRegistrationsForMember(
+  memberAccountId: string,
+  client: TxClient = prisma,
+  now = new Date()
+) {
+  const registrations = await client.eventRegistration.findMany({
+    where: {
+      memberAccountId,
+      status: "REGISTERED",
+      event: { endTime: { gt: now } },
+    },
+    select: { id: true },
+  });
+
+  if (registrations.length === 0) {
+    return { cancelledCount: 0, cancelledRegistrationIds: [] as string[] };
+  }
+
+  const cancelledRegistrationIds = registrations.map((r) => r.id);
+  await client.eventRegistration.updateMany({
+    where: { id: { in: cancelledRegistrationIds } },
+    data: { status: "CANCELLED", cancelledAt: now },
+  });
+
+  return {
+    cancelledCount: cancelledRegistrationIds.length,
+    cancelledRegistrationIds,
+  };
+}
 
 export async function searchMemberAccounts(query?: string) {
   const q = query?.trim();
@@ -89,24 +122,24 @@ export async function getMemberRegistrations(memberAccountId: string, scope = "a
   }));
 
   if (scope === "upcoming") {
-    return mapped.filter((r) => r.event.status === "OPEN" && r.event.eventDate >= now);
+    return mapped.filter((r) => r.event.status === "OPEN" && r.event.endTime > now);
   }
   if (scope === "past") {
-    return mapped.filter((r) => r.event.status !== "OPEN" || r.event.eventDate < now);
+    return mapped.filter((r) => r.event.status !== "OPEN" || r.event.endTime <= now);
   }
 
   return mapped;
 }
 
-export function splitRegistrationsByScope<T extends { event: { status: string; eventDate: Date } }>(
+export function splitRegistrationsByScope<T extends { event: { status: string; endTime: Date } }>(
   registrations: T[],
   now = new Date()
 ) {
   const upcoming = registrations.filter(
-    (r) => r.event.status === "OPEN" && r.event.eventDate >= now
+    (r) => r.event.status === "OPEN" && r.event.endTime > now
   );
   const past = registrations.filter(
-    (r) => r.event.status !== "OPEN" || r.event.eventDate < now
+    (r) => r.event.status !== "OPEN" || r.event.endTime <= now
   );
   return { upcoming, past };
 }

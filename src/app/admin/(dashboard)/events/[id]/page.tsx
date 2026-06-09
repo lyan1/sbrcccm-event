@@ -13,6 +13,7 @@ import { LocationFields, useEventLocations } from "@/components/location-combobo
 import { useI18n } from "@/lib/i18n";
 import { formatCents, formatDate, formatTime } from "@/lib/utils";
 import { APP_TIMEZONE, formatEventDateKey, formatEventTimeKey } from "@/lib/timezone";
+import { getAdminEventDisplayStatus, needsSettlement } from "@/lib/calendar";
 import { downloadFromPost, downloadGet } from "@/lib/download";
 
 interface Registration {
@@ -211,7 +212,9 @@ export default function AdminEventDetailPage() {
     registrations: Registration[];
   };
 
-  const isOpen = ev.status === "OPEN";
+  const adminStatus = getAdminEventDisplayStatus(ev.status, ev.eventDate, ev.endTime);
+  const canCancel = adminStatus === "OPEN";
+  const canSettle = needsSettlement(ev.status, ev.eventDate, ev.endTime);
   const isCompleted = ev.status === "COMPLETED";
 
   return (
@@ -228,9 +231,9 @@ export default function AdminEventDetailPage() {
           </p>
           {ev.locationName && <p>{ev.locationName}</p>}
           {ev.address && <p className="text-sm text-muted-foreground">{ev.address}</p>}
-          <Badge className="mt-2">{tNested(`eventStatuses.${ev.status}`)}</Badge>
+          <Badge className="mt-2">{tNested(`adminEventStatuses.${adminStatus}`)}</Badge>
         </div>
-        {isOpen && (
+        {canCancel && (
           <Button variant="destructive" size="sm" onClick={handleCancelEvent}>{t("cancel")} Event</Button>
         )}
       </div>
@@ -381,7 +384,7 @@ export default function AdminEventDetailPage() {
         </CardContent>
       </Card>
 
-      {isOpen && (
+      {canSettle && (
         <Card>
           <CardHeader><CardTitle>{t("settlementPreview")}</CardTitle></CardHeader>
           <CardContent className="space-y-4">

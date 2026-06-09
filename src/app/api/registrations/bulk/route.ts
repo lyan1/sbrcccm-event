@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { bulkRegistrationSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
-import { startOfToday } from "@/lib/calendar";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,9 +21,9 @@ export async function POST(req: NextRequest) {
     }
 
     const eventIds = items.map((i) => i.eventId);
-    const today = startOfToday();
+    const now = new Date();
     const events = await prisma.pickleballEvent.findMany({
-      where: { id: { in: eventIds }, status: "OPEN", eventDate: { gte: today } },
+      where: { id: { in: eventIds }, status: "OPEN", endTime: { gte: now } },
     });
 
     if (events.length !== eventIds.length) {

@@ -20,6 +20,7 @@ export interface PublicEventDetails {
     startTime: string;
     endTime: string;
     locationName: string | null;
+    address: string | null;
     notes: string | null;
     status: string;
   };
@@ -39,6 +40,7 @@ interface DayEventSummary {
   startTime: string;
   endTime: string;
   locationName: string | null;
+  address: string | null;
   status: string;
   registeredParticipantCount: number;
 }
@@ -156,7 +158,7 @@ export function DateEventPanel({
       <h2 className="font-semibold">{dateLabel}</h2>
 
       {dayEvents.map((ev) => {
-        const canRegister = isRegistrationOpen(ev.status, selectedDateKey);
+        const canRegister = isRegistrationOpen(ev.status, selectedDateKey, ev.endTime);
         const isExpanded = expandedEventId === ev.id;
         const eventDetails = isExpanded && details?.event.id === ev.id ? details : null;
         const playerCount = eventDetails?.registeredParticipantCount ?? ev.registeredParticipantCount;
@@ -171,9 +173,10 @@ export function DateEventPanel({
                   {ev.startTime} – {ev.endTime}
                 </p>
                 {ev.locationName && <p className="text-sm">{ev.locationName}</p>}
+                {ev.address && <p className="text-sm text-muted-foreground">{ev.address}</p>}
               </div>
               <Badge variant="outline">
-                {tNested(`eventStatuses.${getEventDisplayStatus(ev.status, selectedDateKey)}`)}
+                {tNested(`eventStatuses.${getEventDisplayStatus(ev.status, selectedDateKey, ev.endTime)}`)}
               </Badge>
             </div>
           </CardHeader>
@@ -188,6 +191,22 @@ export function DateEventPanel({
                   <p className="text-sm text-muted-foreground">{t("loading")}</p>
                 ) : eventDetails ? (
                   <>
+                {(eventDetails.event.locationName || eventDetails.event.address) && (
+                  <div className="text-sm">
+                    {eventDetails.event.locationName && (
+                      <p>
+                        <span className="text-muted-foreground">{t("location")}: </span>
+                        {eventDetails.event.locationName}
+                      </p>
+                    )}
+                    {eventDetails.event.address && (
+                      <p>
+                        <span className="text-muted-foreground">{t("address")}: </span>
+                        {eventDetails.event.address}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {eventDetails.event.notes && (
                   <p className="text-sm text-muted-foreground">{eventDetails.event.notes}</p>
                 )}
