@@ -191,22 +191,6 @@ export function DateEventPanel({
                   <p className="text-sm text-muted-foreground">{t("loading")}</p>
                 ) : eventDetails ? (
                   <>
-                {(eventDetails.event.locationName || eventDetails.event.address) && (
-                  <div className="text-sm">
-                    {eventDetails.event.locationName && (
-                      <p>
-                        <span className="text-muted-foreground">{t("location")}: </span>
-                        {eventDetails.event.locationName}
-                      </p>
-                    )}
-                    {eventDetails.event.address && (
-                      <p>
-                        <span className="text-muted-foreground">{t("address")}: </span>
-                        {eventDetails.event.address}
-                      </p>
-                    )}
-                  </div>
-                )}
                 {eventDetails.event.notes && (
                   <p className="text-sm text-muted-foreground">{eventDetails.event.notes}</p>
                 )}
