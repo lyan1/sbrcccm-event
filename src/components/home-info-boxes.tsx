@@ -33,7 +33,7 @@ export function HomeInfoBoxes({ siteContent, wechatQr }: HomeInfoBoxesProps) {
       : siteContent?.usageInstructions.en ?? siteContent?.usageInstructions.zh;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">{t("pickleballPurpose")}</CardTitle>
