@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LocationFields, useEventLocations } from "@/components/location-combobox";
 import { useI18n } from "@/lib/i18n";
 
 interface EventRow {
@@ -13,6 +15,7 @@ interface EventRow {
   startTime: string;
   endTime: string;
   locationName: string;
+  address: string;
   notes: string;
 }
 
@@ -22,12 +25,14 @@ const emptyRow = (): EventRow => ({
   startTime: "18:00",
   endTime: "20:00",
   locationName: "",
+  address: "",
   notes: "",
 });
 
 export default function BulkCreateEventsPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const locations = useEventLocations();
   const [rows, setRows] = useState<EventRow[]>([emptyRow(), emptyRow(), emptyRow(), emptyRow()]);
   const [error, setError] = useState("");
 
@@ -35,10 +40,20 @@ export default function BulkCreateEventsPage() {
     setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
   }
 
+  function updateRowLocation(i: number, locationName: string, address: string) {
+    setRows((r) =>
+      r.map((row, idx) => (idx === i ? { ...row, locationName, address } : row))
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     const events = rows.filter((r) => r.eventDate);
+    if (events.some((r) => !r.locationName.trim() || !r.address.trim())) {
+      setError(t("locationAddressRequired"));
+      return;
+    }
     const res = await fetch("/api/admin/events/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,15 +74,39 @@ export default function BulkCreateEventsPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {rows.map((row, i) => (
-          <div key={i} className="grid gap-2 rounded-lg border p-4 sm:grid-cols-6">
-            <Input type="date" value={row.eventDate} onChange={(e) => updateRow(i, "eventDate", e.target.value)} />
-            <Input type="time" value={row.startTime} onChange={(e) => updateRow(i, "startTime", e.target.value)} />
-            <Input type="time" value={row.endTime} onChange={(e) => updateRow(i, "endTime", e.target.value)} />
-            <Input placeholder={t("location")} value={row.locationName} onChange={(e) => updateRow(i, "locationName", e.target.value)} />
-            <Input placeholder={t("notes")} value={row.notes} onChange={(e) => updateRow(i, "notes", e.target.value)} />
-            <Button type="button" variant="ghost" size="sm" onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))}>
-              {t("removeRow")}
-            </Button>
+          <div key={i} className="space-y-3 rounded-lg border p-4">
+            <div className="grid gap-2 sm:grid-cols-4">
+              <div>
+                <Label>{t("date")} *</Label>
+                <Input type="date" value={row.eventDate} onChange={(e) => updateRow(i, "eventDate", e.target.value)} />
+              </div>
+              <div>
+                <Label>Start *</Label>
+                <Input type="time" value={row.startTime} onChange={(e) => updateRow(i, "startTime", e.target.value)} />
+              </div>
+              <div>
+                <Label>End *</Label>
+                <Input type="time" value={row.endTime} onChange={(e) => updateRow(i, "endTime", e.target.value)} />
+              </div>
+              <div className="flex items-end">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))}>
+                  {t("removeRow")}
+                </Button>
+              </div>
+            </div>
+            <LocationFields
+              locations={locations}
+              locationName={row.locationName}
+              address={row.address}
+              locationId={`location-${i}`}
+              onLocationNameChange={(locationName) => updateRow(i, "locationName", locationName)}
+              onAddressChange={(address) => updateRow(i, "address", address)}
+              onLocationSelect={(locationName, address) => updateRowLocation(i, locationName, address)}
+            />
+            <div>
+              <Label>{t("notes")}</Label>
+              <Input value={row.notes} onChange={(e) => updateRow(i, "notes", e.target.value)} />
+            </div>
           </div>
         ))}
 

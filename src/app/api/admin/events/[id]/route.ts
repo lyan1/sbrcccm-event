@@ -5,6 +5,7 @@ import { createEventSchema } from "@/lib/validation";
 import { parseDateTime } from "@/lib/utils";
 import { startOfEventDay } from "@/lib/timezone";
 import { logAudit } from "@/lib/audit";
+import { upsertEventLocation } from "@/lib/locations";
 
 export async function GET(
   _req: NextRequest,
@@ -74,9 +75,25 @@ export async function PATCH(
 
     const data: Record<string, unknown> = {};
     if (parsed.data.title) data.title = parsed.data.title;
-    if (parsed.data.locationName !== undefined) data.locationName = parsed.data.locationName;
-    if (parsed.data.address !== undefined) data.address = parsed.data.address;
+    if (parsed.data.locationName !== undefined) {
+      const locationName = parsed.data.locationName.trim();
+      if (!locationName) {
+        return NextResponse.json({ error: "Location is required" }, { status: 400 });
+      }
+      data.locationName = locationName;
+    }
+    if (parsed.data.address !== undefined) {
+      const address = parsed.data.address.trim();
+      if (!address) {
+        return NextResponse.json({ error: "Address is required" }, { status: 400 });
+      }
+      data.address = address;
+    }
     if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
+
+    if (data.locationName && data.address) {
+      await upsertEventLocation(data.locationName as string, data.address as string);
+    }
 
     if (parsed.data.eventDate && parsed.data.startTime && parsed.data.endTime) {
       const startTime = parseDateTime(parsed.data.eventDate, parsed.data.startTime);

@@ -28,13 +28,18 @@ export const adminLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const eventLocationSchema = z.object({
+  name: z.string().min(1).max(200),
+  address: z.string().min(1).max(500),
+});
+
 export const createEventSchema = z.object({
   title: z.string().max(200).optional(),
   eventDate: z.string().min(1),
   startTime: z.string().min(1),
   endTime: z.string().min(1),
-  locationName: z.string().max(200).optional(),
-  address: z.string().max(500).optional(),
+  locationName: z.string().min(1).max(200),
+  address: z.string().min(1).max(500),
   notes: z.string().max(1000).optional(),
 });
 

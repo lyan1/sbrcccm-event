@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { LocationFields, useEventLocations } from "@/components/location-combobox";
 import { useI18n } from "@/lib/i18n";
 
 export default function NewEventPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const locations = useEventLocations();
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     title: "Pickleball",
@@ -51,8 +53,16 @@ export default function NewEventPage() {
           <div><Label>Start *</Label><Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} required /></div>
           <div><Label>End *</Label><Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} required /></div>
         </div>
-        <div><Label>{t("location")}</Label><Input value={form.locationName} onChange={(e) => setForm({ ...form, locationName: e.target.value })} /></div>
-        <div><Label>{t("address")}</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+        <LocationFields
+          locations={locations}
+          locationName={form.locationName}
+          address={form.address}
+          onLocationNameChange={(locationName) => setForm((prev) => ({ ...prev, locationName }))}
+          onAddressChange={(address) => setForm((prev) => ({ ...prev, address }))}
+          onLocationSelect={(locationName, address) =>
+            setForm((prev) => ({ ...prev, locationName, address }))
+          }
+        />
         <div><Label>{t("notes")}</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" className="w-full">{t("create")}</Button>

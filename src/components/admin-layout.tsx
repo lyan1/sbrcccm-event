@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin", labelKey: "dashboard" as const },
   { href: "/admin/members", labelKey: "members" as const },
   { href: "/admin/events", labelKey: "events" as const },
+  { href: "/admin/locations", labelKey: "locations" as const },
   { href: "/admin/transactions", labelKey: "transactions" as const },
   { href: "/admin/images", labelKey: "images" as const },
   { href: "/admin/site-content", labelKey: "siteContent" as const },

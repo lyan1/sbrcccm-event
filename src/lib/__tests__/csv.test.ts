@@ -31,7 +31,9 @@ describe("buildBalanceSnapshotCsv", () => {
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain("张三家庭");
-    expect(csv).toContain("-1250");
+    expect(csv).toContain("-12.50");
+    const header = csv.replace(/^\uFEFF/, "").split("\n")[0];
+    expect(header).toBe("Member / Family Name,Balance,Phone");
   });
 
   it("sorts by display name", () => {

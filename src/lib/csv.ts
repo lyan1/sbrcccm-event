@@ -1,10 +1,12 @@
-import { formatCents } from "./utils";
-
 export function escapeCsvField(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n") || value.includes("\r")) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+function formatBalanceDecimal(cents: number): string {
+  return (cents / 100).toFixed(2);
 }
 
 export function buildBalanceSnapshotCsv(params: {
@@ -21,24 +23,7 @@ export function buildBalanceSnapshotCsv(params: {
   }>;
   timezone?: string;
 }): string {
-  const tz = params.timezone ?? "America/Chicago";
-  const ts = params.snapshotTimestamp.toLocaleString("sv-SE", { timeZone: tz }).replace(" ", "T");
-  const eventDateStr = params.eventDate
-    ? params.eventDate.toLocaleDateString("en-CA", { timeZone: tz })
-    : "";
-
-  const header = [
-    "Snapshot Timestamp",
-    "Settled Event ID",
-    "Settled Event Date",
-    "Member Account ID",
-    "Member / Family Name",
-    "Balance",
-    "Balance Cents",
-    "Phone",
-    "Email",
-    "Active",
-  ].join(",");
+  const header = ["Member / Family Name", "Balance", "Phone"].join(",");
 
   const sorted = [...params.accounts].sort((a, b) =>
     a.displayName.localeCompare(b.displayName)
@@ -46,16 +31,9 @@ export function buildBalanceSnapshotCsv(params: {
 
   const rows = sorted.map((a) =>
     [
-      escapeCsvField(ts),
-      escapeCsvField(params.eventId ?? ""),
-      escapeCsvField(eventDateStr),
-      escapeCsvField(a.id),
       escapeCsvField(a.displayName),
-      escapeCsvField(formatCents(a.balanceCents)),
-      String(a.balanceCents),
+      formatBalanceDecimal(a.balanceCents),
       escapeCsvField(a.phone ?? ""),
-      escapeCsvField(a.email ?? ""),
-      a.isActive ? "true" : "false",
     ].join(",")
   );
 

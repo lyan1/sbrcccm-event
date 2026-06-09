@@ -6,11 +6,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { LocationFields, useEventLocations } from "@/components/location-combobox";
 import { useI18n } from "@/lib/i18n";
 import { formatCents, formatDate, formatTime } from "@/lib/utils";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { APP_TIMEZONE, formatEventDateKey, formatEventTimeKey } from "@/lib/timezone";
 import { downloadFromPost, downloadGet } from "@/lib/download";
 
 interface Registration {
@@ -52,6 +54,18 @@ export default function AdminEventDetailPage() {
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<SettlementPreview | null>(null);
   const [message, setMessage] = useState("");
+  const [editError, setEditError] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const locations = useEventLocations();
+  const [editForm, setEditForm] = useState({
+    title: "",
+    eventDate: "",
+    startTime: "",
+    endTime: "",
+    locationName: "",
+    address: "",
+    notes: "",
+  });
 
   function load() {
     fetch(`/api/admin/events/${id}`)
@@ -65,6 +79,15 @@ export default function AdminEventDetailPage() {
             (r.status === "CANCELLED" ? 0 : r.registeredParticipantCount);
         });
         setActualCounts(counts);
+        setEditForm({
+          title: data.title as string,
+          eventDate: formatEventDateKey(new Date(data.eventDate as string)),
+          startTime: formatEventTimeKey(new Date(data.startTime as string)),
+          endTime: formatEventTimeKey(new Date(data.endTime as string)),
+          locationName: (data.locationName as string | null) ?? "",
+          address: (data.address as string | null) ?? "",
+          notes: (data.notes as string | null) ?? "",
+        });
       });
   }
 
@@ -131,6 +154,46 @@ export default function AdminEventDetailPage() {
     load();
   }
 
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditError("");
+    setSavingEdit(true);
+
+    const res = await fetch(`/api/admin/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    setSavingEdit(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEditError(data.error ?? t("error"));
+      return;
+    }
+
+    setMessage(t("eventUpdated"));
+    load();
+  }
+
+  async function handleSaveNotes() {
+    setEditError("");
+    setSavingEdit(true);
+    const res = await fetch(`/api/admin/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: editForm.notes }),
+    });
+    setSavingEdit(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEditError(data.error ?? t("error"));
+      return;
+    }
+    setMessage(t("eventUpdated"));
+    load();
+  }
+
   if (!event) return <p>{t("loading")}</p>;
 
   const ev = event as {
@@ -139,6 +202,8 @@ export default function AdminEventDetailPage() {
     startTime: string;
     endTime: string;
     locationName: string | null;
+    address: string | null;
+    notes: string | null;
     status: string;
     expectedTotal: number;
     actualTotal: number;
@@ -162,6 +227,7 @@ export default function AdminEventDetailPage() {
             {formatTime(ev.endTime, "zh-CN", APP_TIMEZONE)}
           </p>
           {ev.locationName && <p>{ev.locationName}</p>}
+          {ev.address && <p className="text-sm text-muted-foreground">{ev.address}</p>}
           <Badge className="mt-2">{tNested(`eventStatuses.${ev.status}`)}</Badge>
         </div>
         {isOpen && (
@@ -176,6 +242,85 @@ export default function AdminEventDetailPage() {
           <span>{t("totalCourtCost")}: {formatCents(ev.totalCostCents)}</span>
         )}
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>{t("editEvent")}</CardTitle></CardHeader>
+        <CardContent>
+          {isCompleted ? (
+            <div className="max-w-lg space-y-3">
+              <div>
+                <Label>{t("notes")}</Label>
+                <Textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                />
+              </div>
+              {editError && <p className="text-sm text-destructive">{editError}</p>}
+              <Button onClick={handleSaveNotes} disabled={savingEdit}>{t("save")}</Button>
+            </div>
+          ) : (
+            <form onSubmit={handleSaveEdit} className="max-w-lg space-y-3">
+              <div>
+                <Label>{t("title")}</Label>
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>{t("date")} *</Label>
+                <Input
+                  type="date"
+                  value={editForm.eventDate}
+                  onChange={(e) => setEditForm({ ...editForm, eventDate: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Start *</Label>
+                  <Input
+                    type="time"
+                    value={editForm.startTime}
+                    onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>End *</Label>
+                  <Input
+                    type="time"
+                    value={editForm.endTime}
+                    onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <LocationFields
+                locations={locations}
+                locationName={editForm.locationName}
+                address={editForm.address}
+                onLocationNameChange={(locationName) =>
+                  setEditForm((prev) => ({ ...prev, locationName }))
+                }
+                onAddressChange={(address) => setEditForm((prev) => ({ ...prev, address }))}
+                onLocationSelect={(locationName, address) =>
+                  setEditForm((prev) => ({ ...prev, locationName, address }))
+                }
+              />
+              <div>
+                <Label>{t("notes")}</Label>
+                <Textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                />
+              </div>
+              {editError && <p className="text-sm text-destructive">{editError}</p>}
+              <Button type="submit" disabled={savingEdit}>{t("save")}</Button>
+            </form>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>{t("registrationList")}</CardTitle></CardHeader>

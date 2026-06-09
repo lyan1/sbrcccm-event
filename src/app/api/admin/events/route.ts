@@ -5,6 +5,7 @@ import { createEventSchema } from "@/lib/validation";
 import { parseDateTime } from "@/lib/utils";
 import { startOfEventDay } from "@/lib/timezone";
 import { logAudit } from "@/lib/audit";
+import { upsertEventLocation } from "@/lib/locations";
 
 export async function GET(req: NextRequest) {
   const session = await requireAdmin();
@@ -51,14 +52,19 @@ export async function POST(req: NextRequest) {
 
     const eventDate = startOfEventDay(parsed.data.eventDate);
 
+    const locationName = parsed.data.locationName.trim();
+    const address = parsed.data.address.trim();
+
+    await upsertEventLocation(locationName, address);
+
     const event = await prisma.pickleballEvent.create({
       data: {
         title: parsed.data.title || "Pickleball",
         eventDate,
         startTime,
         endTime,
-        locationName: parsed.data.locationName,
-        address: parsed.data.address,
+        locationName,
+        address,
         notes: parsed.data.notes,
         status: "OPEN",
       },
