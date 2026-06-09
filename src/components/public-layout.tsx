@@ -10,7 +10,10 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-          <Link href="/" className="text-lg font-bold text-primary">
+          <Link
+            href="/"
+            className="max-w-[calc(100%-5.5rem)] text-sm font-bold leading-snug text-primary sm:text-base"
+          >
             {t("appTitle")}
           </Link>
           <LanguageSwitcher />

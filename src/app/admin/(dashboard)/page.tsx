@@ -51,6 +51,7 @@ export default function AdminDashboardPage() {
         <Button asChild><Link href="/admin/events/new">{t("createEvent")}</Link></Button>
         <Button asChild variant="outline"><Link href="/admin/events/bulk-create">{t("bulkCreateEvents")}</Link></Button>
         <Button asChild variant="outline"><Link href="/admin/images">{t("uploadQr")}</Link></Button>
+        <Button asChild variant="outline"><Link href="/admin/site-content">{t("siteContent")}</Link></Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

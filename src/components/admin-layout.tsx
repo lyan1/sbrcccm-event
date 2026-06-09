@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin/events", labelKey: "events" as const },
   { href: "/admin/transactions", labelKey: "transactions" as const },
   { href: "/admin/images", labelKey: "images" as const },
+  { href: "/admin/site-content", labelKey: "siteContent" as const },
   { href: "/admin/promotions", labelKey: "promotions" as const },
 ];
 

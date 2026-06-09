@@ -5,7 +5,9 @@ import Link from "next/link";
 import { PublicLayout } from "@/components/public-layout";
 import { EventCalendar } from "@/components/event-calendar";
 import { DateEventPanel, type PublicEventDetails } from "@/components/date-event-panel";
+import { HomeInfoBoxes } from "@/components/home-info-boxes";
 import { PromotionalSection, type PromoCard } from "@/components/promotional-section";
+import type { SiteContentPublic, WechatQrPublic } from "@/lib/queries/site-content";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { monthRange, toDateKey, type CalendarEventSummary } from "@/lib/calendar";
@@ -17,6 +19,8 @@ export default function HomePage() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventSummary[]>([]);
   const [promoCards, setPromoCards] = useState<PromoCard[]>([]);
   const [featuredEventDetails, setFeaturedEventDetails] = useState<PublicEventDetails | null>(null);
+  const [siteContent, setSiteContent] = useState<SiteContentPublic | null>(null);
+  const [wechatQr, setWechatQr] = useState<WechatQrPublic | null>(null);
   const [month, setMonth] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -39,6 +43,8 @@ export default function HomePage() {
           events?: CalendarEventSummary[];
           promotions?: PromoCard[];
           featuredEventDetails?: PublicEventDetails | null;
+          siteContent?: SiteContentPublic | null;
+          wechatQr?: WechatQrPublic | null;
         }>;
       })
       .then((data) => {
@@ -46,6 +52,8 @@ export default function HomePage() {
         setCalendarEvents(events);
         setPromoCards(Array.isArray(data.promotions) ? data.promotions : []);
         setFeaturedEventDetails(data.featuredEventDetails ?? null);
+        setSiteContent(data.siteContent ?? null);
+        setWechatQr(data.wechatQr ?? null);
 
         if (!hasAutoSelectedDate.current) {
           const today = toDateKey(new Date());
@@ -64,6 +72,8 @@ export default function HomePage() {
         setCalendarEvents([]);
         setPromoCards([]);
         setFeaturedEventDetails(null);
+        setSiteContent(null);
+        setWechatQr(null);
         setLoading(false);
       });
   }, [month, refreshKey]);
@@ -85,8 +95,9 @@ export default function HomePage() {
   return (
     <PublicLayout>
       <div className="space-y-6">
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">{t("calendar")}</h2>
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">{t("calendar")}</h2>
+          <HomeInfoBoxes siteContent={siteContent} wechatQr={wechatQr} />
           <EventCalendar
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}

@@ -15,8 +15,7 @@ interface PaymentImage {
   imageUrl: string;
 }
 
-const TYPE_LABELS: Record<string, "wechatQr" | "zelleQr" | "venmoQr"> = {
-  WECHAT_QR: "wechatQr",
+const TYPE_LABELS: Record<string, "zelleQr" | "venmoQr"> = {
   ZELLE_QR: "zelleQr",
   VENMO_QR: "venmoQr",
 };
@@ -43,7 +42,7 @@ export default function PaymentInfoPage() {
       });
   }, []);
 
-  const preferredTypes = ["WECHAT_QR", "ZELLE_QR", "VENMO_QR"];
+  const preferredTypes = ["ZELLE_QR", "VENMO_QR"];
 
   return (
     <PublicLayout>

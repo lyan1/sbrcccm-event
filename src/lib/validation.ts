@@ -89,6 +89,16 @@ export const singleRegistrationSchema = z.object({
   participantCount: z.number().int().positive(),
 });
 
+export const siteContentBlockSchema = z.object({
+  key: z.enum(["PICKLEBALL_PURPOSE", "USAGE_INSTRUCTIONS"]),
+  contentZh: z.string().min(1).max(5000),
+  contentEn: z.string().min(1).max(5000),
+});
+
+export const siteContentUpdateSchema = z.object({
+  blocks: z.array(siteContentBlockSchema).min(1),
+});
+
 export const updateMemberSchema = z.object({
   displayName: z.string().min(1).max(200).optional(),
   phone: z.string().max(50).nullable().optional(),
