@@ -11,6 +11,7 @@ import { CountInput } from "@/components/count-input";
 import { Label } from "@/components/ui/label";
 import { parseCount } from "@/lib/count-input";
 import { Badge } from "@/components/ui/badge";
+import { InlineSuccessMessage } from "@/components/inline-success-message";
 import { useI18n } from "@/lib/i18n";
 import { formatDate, formatTime, formatWeekday } from "@/lib/utils";
 import { APP_TIMEZONE } from "@/lib/timezone";
@@ -41,16 +42,18 @@ export default function EventsPage() {
   const [selected, setSelected] = useState<Record<string, { checked: boolean; count: string }>>({});
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  function loadEvents(accountId: string) {
+  function loadEvents(accountId: string, options?: { refresh?: boolean }): Promise<void> {
     if (!accountId) {
       setEvents([]);
-      return;
+      return Promise.resolve();
     }
-    setLoading(true);
+    if (!options?.refresh) {
+      setLoading(true);
+    }
     const qs = `?memberAccountId=${encodeURIComponent(accountId)}`;
-    fetch(`/api/events${qs}`)
+    return fetch(`/api/events${qs}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(await r.text());
         return r.json() as Promise<EventItem[]>;
@@ -65,20 +68,22 @@ export default function EventsPage() {
           };
         });
         setSelected(init);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {})
+      .finally(() => {
+        if (!options?.refresh) {
+          setLoading(false);
+        }
+      });
   }
 
   useEffect(() => {
-    if (memberId) loadEvents(memberId);
+    setSuccessMessage("");
+    if (memberId) void loadEvents(memberId);
   }, [memberId]);
 
   async function handleSubmit() {
-    if (!memberId) {
-      setMessage(t("noAccountSelected"));
-      return;
-    }
+    if (!memberId) return;
 
     const items = Object.entries(selected)
       .filter(([, v]) => v.checked)
@@ -94,9 +99,9 @@ export default function EventsPage() {
     });
 
     if (res.ok) {
-      setMessage(t("registrationSuccess"));
       setSelectedMember({ id: memberId, displayName: memberName });
-      loadEvents(memberId);
+      await loadEvents(memberId, { refresh: true });
+      setSuccessMessage(t("registrationSuccess"));
     }
     setSubmitting(false);
   }
@@ -124,6 +129,8 @@ export default function EventsPage() {
             />
           </CardContent>
         </Card>
+
+        {successMessage && <InlineSuccessMessage>{successMessage}</InlineSuccessMessage>}
 
         {!memberId ? (
           <p className="text-muted-foreground">{t("noAccountSelected")}</p>
@@ -187,8 +194,6 @@ export default function EventsPage() {
                 </Card>
               ))}
             </div>
-
-            {message && <p className="text-green-700">{message}</p>}
 
             <Button
               size="lg"

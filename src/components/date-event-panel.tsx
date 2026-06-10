@@ -11,6 +11,7 @@ import { getEventDisplayStatus, isRegistrationOpen, toDateKey } from "@/lib/cale
 import { useI18n } from "@/lib/i18n";
 import { RegisterSomeoneDialog } from "@/components/register-someone-dialog";
 import { EditRegistrationDialog } from "@/components/edit-registration-dialog";
+import { InlineSuccessMessage } from "@/components/inline-success-message";
 
 export interface PublicEventDetails {
   event: {
@@ -67,6 +68,11 @@ export function DateEventPanel({
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editReg, setEditReg] = useState<PublicEventDetails["registrations"][0] | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSuccessMessage(null);
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!selectedDate || dayEvents.length === 0) {
@@ -131,8 +137,20 @@ export function DateEventPanel({
     void fetchDetails(eventId);
   }
 
-  function refresh() {
+  async function refreshAfterChange(message: string) {
+    setSuccessMessage(message);
     onRefreshCalendar();
+    if (expandedEventId) {
+      await fetchDetails(expandedEventId);
+    }
+  }
+
+  function handleRegisterSuccess() {
+    void refreshAfterChange(t("registrationSuccess"));
+  }
+
+  function handleEditSuccess(action: "update" | "cancel") {
+    void refreshAfterChange(action === "update" ? t("updateSuccess") : t("cancelSuccess"));
   }
 
   if (!selectedDate) {
@@ -156,6 +174,8 @@ export function DateEventPanel({
   return (
     <div className="space-y-3">
       <h2 className="font-semibold">{dateLabel}</h2>
+
+      {successMessage && <InlineSuccessMessage>{successMessage}</InlineSuccessMessage>}
 
       {dayEvents.map((ev) => {
         const canRegister = isRegistrationOpen(ev.status, selectedDateKey, ev.endTime);
@@ -254,13 +274,13 @@ export function DateEventPanel({
             open={registerOpen}
             onOpenChange={setRegisterOpen}
             eventId={expandedEventId}
-            onSuccess={refresh}
+            onSuccess={handleRegisterSuccess}
           />
           <EditRegistrationDialog
             open={editOpen}
             onOpenChange={setEditOpen}
             registration={editReg}
-            onSuccess={refresh}
+            onSuccess={handleEditSuccess}
           />
         </>
       )}

@@ -21,7 +21,7 @@ interface EditRegistrationDialogProps {
     displayName: string;
     registeredParticipantCount: number;
   } | null;
-  onSuccess: () => void;
+  onSuccess: (action: "update" | "cancel") => void;
 }
 
 export function EditRegistrationDialog({
@@ -52,7 +52,7 @@ export function EditRegistrationDialog({
     setSubmitting(false);
     if (res.ok) {
       onOpenChange(false);
-      onSuccess();
+      onSuccess("update");
     }
   }
 
@@ -68,7 +68,7 @@ export function EditRegistrationDialog({
     setSubmitting(false);
     if (res.ok) {
       onOpenChange(false);
-      onSuccess();
+      onSuccess("cancel");
     }
   }
 
