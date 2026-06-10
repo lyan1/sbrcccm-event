@@ -6,7 +6,8 @@ import { PublicLayout } from "@/components/public-layout";
 import { MemberAccountPicker } from "@/components/member-account-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { CountInput } from "@/components/count-input";
+import { parseCount } from "@/lib/count-input";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/lib/i18n";
 import { formatDate, formatTime } from "@/lib/utils";
@@ -38,7 +39,7 @@ export default function MyRegistrationsPage() {
   const [upcoming, setUpcoming] = useState<Registration[]>([]);
   const [past, setPast] = useState<Registration[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editCount, setEditCount] = useState(1);
+  const [editCount, setEditCount] = useState("1");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function MyRegistrationsPage() {
     await fetch(`/api/registrations/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ registeredParticipantCount: editCount }),
+      body: JSON.stringify({ registeredParticipantCount: parseCount(editCount, 1) }),
     });
     setEditingId(null);
     load();
@@ -133,11 +134,9 @@ export default function MyRegistrationsPage() {
             <div className="flex gap-2 pt-2">
               {editingId === reg.id ? (
                 <>
-                  <Input
-                    type="number"
-                    min={1}
+                  <CountInput
                     value={editCount}
-                    onChange={(e) => setEditCount(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={setEditCount}
                     className="w-20"
                   />
                   <Button size="sm" onClick={() => handleUpdate(reg.id)}>
@@ -154,7 +153,7 @@ export default function MyRegistrationsPage() {
                     variant="outline"
                     onClick={() => {
                       setEditingId(reg.id);
-                      setEditCount(reg.registeredParticipantCount);
+                      setEditCount(String(reg.registeredParticipantCount));
                     }}
                   >
                     {t("modify")}

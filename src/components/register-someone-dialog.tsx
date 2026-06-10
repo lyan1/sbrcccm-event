@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { CountInput } from "@/components/count-input";
 import { Label } from "@/components/ui/label";
+import { parseCount } from "@/lib/count-input";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,7 @@ export function RegisterSomeoneDialog({
   const { t } = useI18n();
   const [memberId, setMemberId] = useState("");
   const [memberName, setMemberName] = useState("");
-  const [count, setCount] = useState(1);
+  const [count, setCount] = useState("1");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,7 +50,7 @@ export function RegisterSomeoneDialog({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         memberAccountId: memberId,
-        items: [{ eventId, participantCount: count }],
+        items: [{ eventId, participantCount: parseCount(count, 1) }],
       }),
     });
 
@@ -82,11 +83,9 @@ export function RegisterSomeoneDialog({
           />
           <div>
             <Label>{t("participantCount")}</Label>
-            <Input
-              type="number"
-              min={1}
+            <CountInput
               value={count}
-              onChange={(e) => setCount(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={setCount}
               className="mt-1 w-24"
             />
           </div>

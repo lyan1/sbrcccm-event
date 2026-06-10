@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { CountInput } from "@/components/count-input";
 import { Label } from "@/components/ui/label";
+import { parseCount } from "@/lib/count-input";
 import {
   Dialog,
   DialogContent,
@@ -30,11 +31,11 @@ export function EditRegistrationDialog({
   onSuccess,
 }: EditRegistrationDialogProps) {
   const { t } = useI18n();
-  const [count, setCount] = useState(1);
+  const [count, setCount] = useState("1");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (registration) setCount(registration.registeredParticipantCount);
+    if (registration) setCount(String(registration.registeredParticipantCount));
   }, [registration]);
 
   async function handleSave(e: React.FormEvent) {
@@ -45,7 +46,7 @@ export function EditRegistrationDialog({
     const res = await fetch(`/api/registrations/${registration.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ registeredParticipantCount: count }),
+      body: JSON.stringify({ registeredParticipantCount: parseCount(count, 1) }),
     });
 
     setSubmitting(false);
@@ -83,11 +84,9 @@ export function EditRegistrationDialog({
           <p className="font-medium">{registration.displayName}</p>
           <div>
             <Label>{t("participantCount")}</Label>
-            <Input
-              type="number"
-              min={1}
+            <CountInput
               value={count}
-              onChange={(e) => setCount(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={setCount}
               className="mt-1 w-24"
             />
           </div>

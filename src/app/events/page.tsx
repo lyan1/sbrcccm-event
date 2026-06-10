@@ -7,8 +7,9 @@ import { MemberAccountPicker } from "@/components/member-account-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { CountInput } from "@/components/count-input";
 import { Label } from "@/components/ui/label";
+import { parseCount } from "@/lib/count-input";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/lib/i18n";
 import { formatDate, formatTime, formatWeekday } from "@/lib/utils";
@@ -37,7 +38,7 @@ export default function EventsPage() {
   const [memberId, setMemberId] = useState("");
   const [memberName, setMemberName] = useState("");
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [selected, setSelected] = useState<Record<string, { checked: boolean; count: number }>>({});
+  const [selected, setSelected] = useState<Record<string, { checked: boolean; count: string }>>({});
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -56,11 +57,11 @@ export default function EventsPage() {
       })
       .then((data) => {
         setEvents(data);
-        const init: Record<string, { checked: boolean; count: number }> = {};
+        const init: Record<string, { checked: boolean; count: string }> = {};
         data.forEach((e) => {
           init[e.id] = {
             checked: false,
-            count: e.selectedAccountRegistration?.registeredParticipantCount ?? 1,
+            count: String(e.selectedAccountRegistration?.registeredParticipantCount ?? 1),
           };
         });
         setSelected(init);
@@ -81,7 +82,7 @@ export default function EventsPage() {
 
     const items = Object.entries(selected)
       .filter(([, v]) => v.checked)
-      .map(([eventId, v]) => ({ eventId, participantCount: v.count }));
+      .map(([eventId, v]) => ({ eventId, participantCount: parseCount(v.count, 1) }));
 
     if (items.length === 0) return;
 
@@ -171,17 +172,12 @@ export default function EventsPage() {
                   {(selected[event.id]?.checked || event.selectedAccountRegistration) && (
                     <CardContent>
                       <Label>{t("participantCount")}</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={selected[event.id]?.count ?? 1}
-                        onChange={(e) =>
+                      <CountInput
+                        value={selected[event.id]?.count ?? "1"}
+                        onChange={(count) =>
                           setSelected((s) => ({
                             ...s,
-                            [event.id]: {
-                              ...s[event.id],
-                              count: Math.max(1, parseInt(e.target.value) || 1),
-                            },
+                            [event.id]: { ...s[event.id], count },
                           }))
                         }
                         className="mt-1 w-24"

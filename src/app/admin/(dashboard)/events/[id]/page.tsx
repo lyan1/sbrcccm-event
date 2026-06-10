@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { CountInput } from "@/components/count-input";
 import { Input } from "@/components/ui/input";
+import { parseCount } from "@/lib/count-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +53,7 @@ export default function AdminEventDetailPage() {
 
   const [event, setEvent] = useState<Record<string, unknown> | null>(null);
   const [totalCost, setTotalCost] = useState("");
-  const [actualCounts, setActualCounts] = useState<Record<string, number>>({});
+  const [actualCounts, setActualCounts] = useState<Record<string, string>>({});
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<SettlementPreview | null>(null);
   const [message, setMessage] = useState("");
@@ -73,11 +75,12 @@ export default function AdminEventDetailPage() {
       .then((r) => r.json())
       .then((data) => {
         setEvent(data);
-        const counts: Record<string, number> = {};
+        const counts: Record<string, string> = {};
         (data.registrations as Registration[]).forEach((r) => {
-          counts[r.id] =
+          counts[r.id] = String(
             r.actualParticipantCount ??
-            (r.status === "CANCELLED" ? 0 : r.registeredParticipantCount);
+              (r.status === "CANCELLED" ? 0 : r.registeredParticipantCount),
+          );
         });
         setActualCounts(counts);
         setEditForm({
@@ -98,7 +101,7 @@ export default function AdminEventDetailPage() {
     const regs = (event as { registrations: Registration[] }).registrations;
     return regs.map((r) => ({
       registrationId: r.id,
-      actualParticipantCount: actualCounts[r.id] ?? 0,
+      actualParticipantCount: parseCount(actualCounts[r.id] ?? "0", 0),
       overrideDeductionCents: overrides[r.id]
         ? Math.round(parseFloat(overrides[r.id]) * 100)
         : null,
@@ -348,16 +351,12 @@ export default function AdminEventDetailPage() {
                     {isCompleted ? (
                       r.actualParticipantCount ?? 0
                     ) : (
-                      <Input
-                        type="number"
+                      <CountInput
                         min={0}
                         className="ml-auto w-16"
-                        value={actualCounts[r.id] ?? 0}
-                        onChange={(e) =>
-                          setActualCounts((c) => ({
-                            ...c,
-                            [r.id]: Math.max(0, parseInt(e.target.value) || 0),
-                          }))
+                        value={actualCounts[r.id] ?? "0"}
+                        onChange={(value) =>
+                          setActualCounts((c) => ({ ...c, [r.id]: value }))
                         }
                       />
                     )}
