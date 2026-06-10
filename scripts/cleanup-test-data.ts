@@ -2,26 +2,15 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const SEED_FAMILY_IDS = ["seed-zhang-family", "seed-chen-family"];
-const SEED_EVENT_IDS = ["seed-event-1", "seed-event-2"];
-
-function isSeedMemberId(id: string) {
-  return (
-    id === "seed-li-si" ||
-    id.startsWith("seed-zhang-family-") ||
-    id.startsWith("seed-chen-family-")
-  );
-}
-
 async function main() {
   const allMembers = await prisma.memberAccount.findMany({ select: { id: true, displayName: true } });
-  const testMemberIds = allMembers.filter((m) => !isSeedMemberId(m.id)).map((m) => m.id);
+  const testMemberIds = allMembers.map((m) => m.id);
 
   const allFamilies = await prisma.family.findMany({ select: { id: true, displayName: true } });
-  const testFamilyIds = allFamilies.filter((f) => !SEED_FAMILY_IDS.includes(f.id)).map((f) => f.id);
+  const testFamilyIds = allFamilies.map((f) => f.id);
 
   const allEvents = await prisma.pickleballEvent.findMany({ select: { id: true, title: true } });
-  const testEventIds = allEvents.filter((e) => !SEED_EVENT_IDS.includes(e.id)).map((e) => e.id);
+  const testEventIds = allEvents.map((e) => e.id);
 
   const deleted = {
     transactions: 0,
@@ -91,28 +80,6 @@ async function main() {
   });
   deleted.locations = locResult.count;
 
-  await prisma.family.updateMany({
-    where: { id: { in: SEED_FAMILY_IDS } },
-    data: { balanceCents: 0 },
-  });
-
-  await prisma.memberAccount.update({
-    where: { id: "seed-li-si" },
-    data: { balanceCents: 5000, familyId: null },
-  });
-
-  await prisma.pickleballEvent.updateMany({
-    where: { id: { in: SEED_EVENT_IDS } },
-    data: {
-      status: "OPEN",
-      settledAt: null,
-      settledByAdminId: null,
-      totalCostCents: null,
-      totalActualParticipants: null,
-      calculatedPerPersonCostCents: null,
-    },
-  });
-
   console.log("Cleanup summary:");
   console.log(`  Removed ${deleted.members} test members`);
   console.log(`  Removed ${deleted.families} test families`);
@@ -121,7 +88,6 @@ async function main() {
   console.log(`  Removed ${deleted.transactions} transactions`);
   console.log(`  Removed ${deleted.balanceSnapshots} balance snapshots`);
   console.log(`  Removed ${deleted.locations} unused test locations`);
-  console.log("Seed families, members, and events restored to defaults.");
 }
 
 main()
