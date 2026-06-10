@@ -2,6 +2,12 @@ import { RegistrationStatus } from "@prisma/client";
 import { prisma } from "./db";
 import { createTransaction } from "./transactions";
 import { logAudit } from "./audit";
+import {
+  balanceUnitsForSnapshot,
+  effectiveBalanceCents,
+  fetchActiveBalanceUnits,
+  walletKey,
+} from "./family-balance";
 
 export interface SettlementItemInput {
   registrationId: string;
@@ -30,6 +36,23 @@ export interface SettlementPreview {
   hasOverrides: boolean;
 }
 
+function applySequentialWalletBalances(
+  items: SettlementPreviewItem[],
+  walletKeys: Map<string, string>,
+  walletStartBalances: Map<string, number>
+): SettlementPreviewItem[] {
+  const running = new Map(walletStartBalances);
+  const sorted = [...items].sort((a, b) => a.registrationId.localeCompare(b.registrationId));
+
+  return sorted.map((item) => {
+    const key = walletKeys.get(item.registrationId)!;
+    const before = running.get(key) ?? 0;
+    const after = before - item.finalDeductionCents;
+    running.set(key, after);
+    return { ...item, balanceBeforeCents: before, balanceAfterCents: after };
+  });
+}
+
 export function calculateDeductions(
   totalCostCents: number,
   items: Array<{
@@ -38,6 +61,7 @@ export function calculateDeductions(
     displayName: string;
     actualParticipantCount: number;
     balanceBeforeCents: number;
+    walletKey: string;
     overrideDeductionCents?: number | null;
   }>
 ): SettlementPreview {
@@ -102,15 +126,25 @@ export function calculateDeductions(
     entry.calculatedDeductionCents += basePerPerson + extra;
   });
 
+  const walletKeys = new Map(
+    items.map((item) => [item.registrationId, item.walletKey])
+  );
+  const walletStartBalances = new Map<string, number>();
+  for (const item of items) {
+    if (!walletStartBalances.has(item.walletKey)) {
+      walletStartBalances.set(item.walletKey, item.balanceBeforeCents);
+    }
+  }
+
   let hasOverrides = false;
-  const previewItems: SettlementPreviewItem[] = [];
+  const rawPreviewItems: SettlementPreviewItem[] = [];
 
   for (const entry of deductionMap.values()) {
     const finalDeduction =
       entry.overrideDeductionCents ?? entry.calculatedDeductionCents;
     if (entry.overrideDeductionCents != null) hasOverrides = true;
 
-    previewItems.push({
+    rawPreviewItems.push({
       registrationId: entry.registrationId,
       memberAccountId: entry.memberAccountId,
       displayName: entry.displayName,
@@ -122,6 +156,12 @@ export function calculateDeductions(
       balanceAfterCents: entry.balanceBeforeCents - finalDeduction,
     });
   }
+
+  const previewItems = applySequentialWalletBalances(
+    rawPreviewItems,
+    walletKeys,
+    walletStartBalances
+  );
 
   return {
     totalCostCents,
@@ -142,7 +182,11 @@ export async function buildSettlementPreview(
     where: { id: eventId },
     include: {
       registrations: {
-        include: { memberAccount: true },
+        include: {
+          memberAccount: {
+            include: { family: true },
+          },
+        },
       },
     },
   });
@@ -161,13 +205,15 @@ export async function buildSettlementPreview(
         ? 0
         : reg.actualParticipantCount ??
           reg.registeredParticipantCount);
+    const member = reg.memberAccount;
 
     return {
       registrationId: reg.id,
       memberAccountId: reg.memberAccountId,
-      displayName: reg.memberAccount.displayName,
+      displayName: member.displayName,
       actualParticipantCount: actualCount,
-      balanceBeforeCents: reg.memberAccount.balanceCents,
+      balanceBeforeCents: effectiveBalanceCents(member),
+      walletKey: walletKey(member),
       overrideDeductionCents: input?.overrideDeductionCents,
     };
   });
@@ -186,7 +232,11 @@ export async function confirmSettlement(
       where: { id: eventId },
       include: {
         registrations: {
-          include: { memberAccount: true },
+          include: {
+            memberAccount: {
+              include: { family: true },
+            },
+          },
         },
       },
     });
@@ -205,13 +255,15 @@ export async function confirmSettlement(
           ? 0
           : reg.actualParticipantCount ??
             reg.registeredParticipantCount);
+      const member = reg.memberAccount;
 
       return {
         registrationId: reg.id,
         memberAccountId: reg.memberAccountId,
-        displayName: reg.memberAccount.displayName,
+        displayName: member.displayName,
         actualParticipantCount: actualCount,
-        balanceBeforeCents: reg.memberAccount.balanceCents,
+        balanceBeforeCents: effectiveBalanceCents(member),
+        walletKey: walletKey(member),
         overrideDeductionCents: input?.overrideDeductionCents,
       };
     });
@@ -269,18 +321,8 @@ export async function confirmSettlement(
 }
 
 export async function fetchActiveMemberBalances() {
-  return prisma.memberAccount.findMany({
-    where: { isActive: true },
-    select: {
-      id: true,
-      displayName: true,
-      balanceCents: true,
-      phone: true,
-      email: true,
-      isActive: true,
-    },
-    orderBy: { displayName: "asc" },
-  });
+  const units = await fetchActiveBalanceUnits();
+  return balanceUnitsForSnapshot(units);
 }
 
 export async function confirmSettlementWithSnapshot(

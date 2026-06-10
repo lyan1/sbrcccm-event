@@ -30,7 +30,12 @@ interface DashboardData {
   }>;
   activeMemberCount: number;
   negativeBalanceCount: number;
-  negativeBalanceAccounts: Array<{ id: string; displayName: string; balanceCents: number }>;
+  negativeBalanceAccounts: Array<{
+    id: string;
+    displayName: string;
+    balanceCents: number;
+    kind: "family" | "solo";
+  }>;
 }
 
 export default function AdminDashboardPage() {
@@ -94,7 +99,11 @@ export default function AdminDashboardPage() {
           <CardHeader><CardTitle>{t("negativeBalances")}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {data.negativeBalanceAccounts.map((m) => (
-              <Link key={m.id} href={`/admin/members/${m.id}`} className="flex justify-between text-sm hover:underline">
+              <Link
+                key={m.id}
+                href={m.kind === "family" ? `/admin/families/${m.id}` : `/admin/members/${m.id}`}
+                className="flex justify-between text-sm hover:underline"
+              >
                 <span>{m.displayName}</span>
                 <span className="text-destructive">{formatCents(m.balanceCents)}</span>
               </Link>

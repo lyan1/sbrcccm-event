@@ -1,10 +1,31 @@
 import { z } from "zod";
 
-export const createMemberSchema = z.object({
+export const createMemberSchema = z
+  .object({
+    displayName: z.string().min(1).max(200),
+    phone: z.string().max(50).optional(),
+    email: z.string().email().optional().or(z.literal("")),
+    notes: z.string().max(1000).optional(),
+    familyId: z.string().min(1).optional(),
+    newFamilyDisplayName: z.string().min(1).max(200).optional(),
+  })
+  .refine((data) => !(data.familyId && data.newFamilyDisplayName), {
+    message: "Provide either familyId or newFamilyDisplayName, not both",
+  });
+
+export const createFamilySchema = z.object({
   displayName: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
   email: z.string().email().optional().or(z.literal("")),
   notes: z.string().max(1000).optional(),
+});
+
+export const updateFamilySchema = z.object({
+  displayName: z.string().min(1).max(200).optional(),
+  phone: z.string().max(50).nullable().optional(),
+  email: z.string().email().nullable().optional().or(z.literal("")),
+  notes: z.string().max(1000).nullable().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const bulkRegistrationSchema = z.object({
@@ -110,4 +131,5 @@ export const updateMemberSchema = z.object({
   email: z.string().email().nullable().optional().or(z.literal("")),
   notes: z.string().max(1000).nullable().optional(),
   isActive: z.boolean().optional(),
+  familyId: z.string().min(1).nullable().optional(),
 });

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { cancelUpcomingRegistrationsForMember } from "@/lib/queries/member-accounts";
 import { updateMemberSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { assignMemberToFamily } from "@/lib/member-create";
+import { effectiveBalanceCents } from "@/lib/family-balance";
 
 export async function GET(
   _req: NextRequest,
@@ -16,7 +18,7 @@ export async function GET(
   const account = await prisma.memberAccount.findUnique({
     where: { id },
     include: {
-      transactions: { orderBy: { createdAt: "desc" }, take: 50, include: { event: true } },
+      family: { select: { id: true, displayName: true, balanceCents: true, isActive: true } },
       registrations: {
         orderBy: { createdAt: "desc" },
         take: 50,
@@ -26,7 +28,24 @@ export async function GET(
   });
 
   if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(account);
+
+  const transactions = await prisma.transaction.findMany({
+    where: account.familyId
+      ? { familyId: account.familyId }
+      : { memberAccountId: id, familyId: null },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      event: true,
+      memberAccount: { select: { displayName: true } },
+    },
+  });
+
+  return NextResponse.json({
+    ...account,
+    balanceCents: effectiveBalanceCents(account),
+    transactions,
+  });
 }
 
 export async function PATCH(
@@ -48,16 +67,24 @@ export async function PATCH(
     if (!old) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const deactivating = old.isActive && parsed.data.isActive === false;
+    const { familyId, ...memberFields } = parsed.data;
 
     const { updated, cancelledRegistrationCount, cancelledRegistrationIds } =
       await prisma.$transaction(async (tx) => {
-        const account = await tx.memberAccount.update({
+        let account = await tx.memberAccount.update({
           where: { id },
           data: {
-            ...parsed.data,
-            email: parsed.data.email === "" ? null : parsed.data.email,
+            ...memberFields,
+            email: memberFields.email === "" ? null : memberFields.email,
+          },
+          include: {
+            family: { select: { id: true, displayName: true, balanceCents: true, isActive: true } },
           },
         });
+
+        if (familyId !== undefined) {
+          account = await assignMemberToFamily(id, familyId, tx);
+        }
 
         let cancelledRegistrationCount = 0;
         let cancelledRegistrationIds: string[] = [];
@@ -94,7 +121,11 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ ...updated, cancelledRegistrationCount });
+    return NextResponse.json({
+      ...updated,
+      balanceCents: effectiveBalanceCents(updated),
+      cancelledRegistrationCount,
+    });
   } catch {
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
@@ -117,10 +148,11 @@ export async function DELETE(
     });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    const hasSoloBalance = !existing.familyId && existing.balanceCents !== 0;
     if (
       existing._count.transactions > 0 ||
       existing._count.registrations > 0 ||
-      existing.balanceCents !== 0
+      hasSoloBalance
     ) {
       return NextResponse.json({ error: "MEMBER_DELETE_BLOCKED" }, { status: 409 });
     }

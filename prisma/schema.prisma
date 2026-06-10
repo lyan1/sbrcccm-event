@@ -8,6 +8,25 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Family {
+  id           String  @id @default(cuid())
+  displayName  String
+  balanceCents Int     @default(0)
+  phone        String?
+  email        String?
+  notes        String?
+  isActive     Boolean @default(true)
+
+  members      MemberAccount[]
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([displayName])
+  @@index([isActive])
+}
+
 model MemberAccount {
   id           String   @id @default(cuid())
   displayName  String
@@ -17,6 +36,9 @@ model MemberAccount {
   balanceCents Int      @default(0)
   isActive     Boolean  @default(true)
 
+  familyId String?
+  family   Family? @relation(fields: [familyId], references: [id])
+
   registrations EventRegistration[]
   transactions  Transaction[]
 
@@ -25,6 +47,7 @@ model MemberAccount {
 
   @@index([displayName])
   @@index([isActive])
+  @@index([familyId])
 }
 
 model AdminUser {
@@ -131,6 +154,9 @@ model Transaction {
   memberAccountId String
   memberAccount   MemberAccount @relation(fields: [memberAccountId], references: [id])
 
+  familyId String?
+  family   Family? @relation(fields: [familyId], references: [id])
+
   eventId String?
   event   PickleballEvent? @relation(fields: [eventId], references: [id])
 
@@ -152,6 +178,7 @@ model Transaction {
   createdAt DateTime @default(now())
 
   @@index([memberAccountId])
+  @@index([familyId])
   @@index([eventId])
   @@index([type])
   @@index([createdAt])

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { fetchNegativeBalanceUnits } from "@/lib/family-balance";
 
 export async function GET() {
   const session = await requireAdmin();
@@ -17,7 +18,7 @@ export async function GET() {
     recentPayments,
     recentDeductions,
     activeMemberCount,
-    negativeBalanceAccounts,
+    negativeUnits,
   ] = await Promise.all([
     prisma.pickleballEvent.findMany({
       where: { status: "OPEN", endTime: { gte: now } },
@@ -53,12 +54,23 @@ export async function GET() {
       },
     }),
     prisma.memberAccount.count({ where: { isActive: true } }),
-    prisma.memberAccount.findMany({
-      where: { isActive: true, balanceCents: { lt: 0 } },
-      orderBy: { balanceCents: "asc" },
-      select: { id: true, displayName: true, balanceCents: true },
-    }),
+    fetchNegativeBalanceUnits(),
   ]);
+
+  const negativeBalanceAccounts = [
+    ...negativeUnits.negativeFamilies.map((f) => ({
+      id: f.id,
+      displayName: f.displayName,
+      balanceCents: f.balanceCents,
+      kind: "family" as const,
+    })),
+    ...negativeUnits.negativeSolo.map((m) => ({
+      id: m.id,
+      displayName: m.displayName,
+      balanceCents: m.balanceCents,
+      kind: "solo" as const,
+    })),
+  ].sort((a, b) => a.balanceCents - b.balanceCents);
 
   return NextResponse.json({
     upcomingEvents,

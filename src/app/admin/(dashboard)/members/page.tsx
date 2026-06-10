@@ -16,6 +16,7 @@ interface Member {
   balanceCents: number;
   isActive: boolean;
   createdAt: string;
+  family: { id: string; displayName: string } | null;
 }
 
 type ImportResult =
@@ -84,6 +85,8 @@ export default function AdminMembersPage() {
     switch (reason) {
       case "MEMBER_EXISTS":
         return t("importCsvReason_MEMBER_EXISTS");
+      case "FAMILY_EXISTS":
+        return t("importCsvReason_FAMILY_EXISTS");
       case "DUPLICATE_NAMES":
         return t("importCsvReason_DUPLICATE_NAMES");
       case "EMPTY_NAME":
@@ -227,6 +230,7 @@ export default function AdminMembersPage() {
           <thead className="bg-muted">
             <tr>
               <th className="p-3 text-left">{t("displayName")}</th>
+              <th className="p-3 text-left">{t("family")}</th>
               <th className="p-3 text-left">{t("phone")}</th>
               <th className="p-3 text-left">{t("email")}</th>
               <th className="p-3 text-right">{t("balance")}</th>
@@ -239,6 +243,15 @@ export default function AdminMembersPage() {
             {members.map((m) => (
               <tr key={m.id} className="border-t">
                 <td className="p-3">{m.displayName}</td>
+                <td className="p-3">
+                  {m.family ? (
+                    <Link href={`/admin/families/${m.family.id}`} className="text-primary hover:underline">
+                      {m.family.displayName}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="p-3">{m.phone ?? "—"}</td>
                 <td className="p-3">{m.email ?? "—"}</td>
                 <td className={`p-3 text-right ${m.balanceCents < 0 ? "text-destructive" : ""}`}>

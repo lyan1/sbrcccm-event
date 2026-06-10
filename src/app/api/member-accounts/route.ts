@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logDbError, prisma, withDbRetry } from "@/lib/db";
+import { logDbError, withDbRetry } from "@/lib/db";
 import { searchMemberAccounts } from "@/lib/queries/member-accounts";
 import { createMemberSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { createMemberAccount } from "@/lib/member-create";
+import { effectiveBalanceCents } from "@/lib/family-balance";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,18 +27,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { displayName, phone, email, notes } = parsed.data;
+    const { displayName, phone, email, notes, familyId, newFamilyDisplayName } = parsed.data;
 
     const account = await withDbRetry(() =>
-      prisma.memberAccount.create({
-        data: {
-          displayName: displayName.trim(),
-          phone: phone || null,
-          email: email || null,
-          notes: notes || null,
-          balanceCents: 0,
-          isActive: true,
-        },
+      createMemberAccount({
+        displayName,
+        phone,
+        email,
+        notes,
+        familyId,
+        newFamilyDisplayName,
       })
     );
 
@@ -45,13 +45,19 @@ export async function POST(req: NextRequest) {
       action: "MEMBER_CREATED",
       entityType: "MemberAccount",
       entityId: account.id,
-      newValue: { displayName: account.displayName },
+      newValue: {
+        displayName: account.displayName,
+        familyId: account.familyId,
+      },
     });
 
     return NextResponse.json({
       id: account.id,
       displayName: account.displayName,
-      balanceCents: account.balanceCents,
+      balanceCents: effectiveBalanceCents(account),
+      family: account.family
+        ? { id: account.family.id, displayName: account.family.displayName }
+        : null,
     });
   } catch (error) {
     logDbError("POST /api/member-accounts failed", error);

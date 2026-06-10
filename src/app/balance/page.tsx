@@ -16,6 +16,7 @@ interface Transaction {
   type: string;
   amountCents: number;
   balanceAfterCents: number;
+  memberDisplayName?: string;
   eventTitle?: string;
   eventDate?: string;
   paymentMethod?: string;
@@ -29,6 +30,7 @@ export default function BalancePage() {
 
   const [memberId, setMemberId] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
+  const [familyName, setFamilyName] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [range, setRange] = useState("3m");
   const [loading, setLoading] = useState(false);
@@ -41,6 +43,7 @@ export default function BalancePage() {
   useEffect(() => {
     if (!memberId) {
       setBalance(null);
+      setFamilyName(null);
       setTransactions([]);
       return;
     }
@@ -48,15 +51,21 @@ export default function BalancePage() {
     fetch(`/api/member-accounts/${encodeURIComponent(memberId)}/balance-summary?range=${range}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("balance summary failed");
-        return r.json() as Promise<{ balanceCents?: number; transactions?: Transaction[] }>;
+        return r.json() as Promise<{
+          balanceCents?: number;
+          family?: { displayName: string } | null;
+          transactions?: Transaction[];
+        }>;
       })
       .then((data) => {
         setBalance(typeof data.balanceCents === "number" ? data.balanceCents : null);
+        setFamilyName(data.family?.displayName ?? null);
         setTransactions(Array.isArray(data.transactions) ? data.transactions : []);
         setLoading(false);
       })
       .catch(() => {
         setBalance(null);
+        setFamilyName(null);
         setTransactions([]);
         setLoading(false);
       });
@@ -88,12 +97,19 @@ export default function BalancePage() {
         ) : (
           <>
             <div className="rounded-lg border bg-card p-6 text-center">
-              <p className="text-sm text-muted-foreground">{t("currentBalance")}</p>
+              <p className="text-sm text-muted-foreground">
+                {familyName ? t("sharedFamilyBalance") : t("currentBalance")}
+              </p>
               <p
                 className={`text-3xl font-bold ${(balance ?? 0) < 0 ? "text-destructive" : "text-green-700"}`}
               >
                 {formatCents(balance ?? 0, locale)}
               </p>
+              {familyName && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {t("familyBalanceHint").replace("{family}", familyName)}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-between">
@@ -120,7 +136,14 @@ export default function BalancePage() {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium">{tNested(`transactionTypes.${txn.type}`)}</p>
+                          <p className="font-medium">
+                            {tNested(`transactionTypes.${txn.type}`)}
+                            {txn.memberDisplayName && familyName && (
+                              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                · {txn.memberDisplayName}
+                              </span>
+                            )}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {formatDate(txn.createdAt, locale)}
                           </p>

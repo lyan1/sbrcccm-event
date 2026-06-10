@@ -29,7 +29,12 @@ export async function GET(req: NextRequest) {
     ...(type ? { type: type as TransactionType } : {}),
     ...(paymentMethod ? { paymentMethod: paymentMethod as PaymentMethod } : {}),
     ...(negativeBalanceOnly
-      ? { memberAccount: { balanceCents: { lt: 0 } } }
+      ? {
+          OR: [
+            { familyId: { not: null }, family: { balanceCents: { lt: 0 } } },
+            { familyId: null, memberAccount: { balanceCents: { lt: 0 } } },
+          ],
+        }
       : {}),
   };
 
@@ -37,6 +42,7 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       memberAccount: { select: { displayName: true } },
+      family: { select: { displayName: true } },
       event: { select: { title: true, eventDate: true } },
       createdByAdmin: { select: { username: true } },
     },

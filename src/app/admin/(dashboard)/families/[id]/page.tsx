@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -12,77 +12,117 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n";
 import { formatCents, formatDate } from "@/lib/utils";
 
-export default function AdminMemberDetailPage() {
+export default function AdminFamilyDetailPage() {
   const { t, tNested } = useI18n();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
   const [deleteError, setDeleteError] = useState("");
-  const [message, setMessage] = useState("");
-
-  const [account, setAccount] = useState<Record<string, unknown> | null>(null);
+  const [family, setFamily] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ displayName: "", phone: "", email: "", notes: "" });
-  const [familyId, setFamilyId] = useState<string | null>(null);
-  const [families, setFamilies] = useState<Array<{ id: string; displayName: string }>>([]);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("ZELLE");
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustDesc, setAdjustDesc] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberCandidates, setMemberCandidates] = useState<Array<{ id: string; displayName: string }>>([]);
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false);
+  const [memberActionError, setMemberActionError] = useState("");
 
   function load() {
-    fetch(`/api/admin/member-accounts/${id}`)
+    fetch(`/api/admin/families/${id}`)
       .then((r) => r.json())
       .then((data) => {
-        setAccount(data);
+        setFamily(data);
         setForm({
           displayName: data.displayName,
           phone: data.phone ?? "",
           email: data.email ?? "",
           notes: data.notes ?? "",
         });
-        setFamilyId(data.family?.id ?? null);
       });
   }
 
   useEffect(() => { load(); }, [id]);
 
-  useEffect(() => {
-    if (!editing) return;
-    fetch("/api/admin/families?isActive=true")
-      .then((r) => r.json())
-      .then((data) => setFamilies(Array.isArray(data) ? data : []));
-  }, [editing]);
+  const fetchUnassignedMembers = useCallback(async (query: string) => {
+    setMemberSearchLoading(true);
+    try {
+      const params = new URLSearchParams({
+        unassignedOnly: "true",
+        isActive: "true",
+        q: query,
+      });
+      const res = await fetch(`/api/admin/member-accounts?${params}`);
+      const data = await res.json();
+      setMemberCandidates(Array.isArray(data) ? data : []);
+    } catch {
+      setMemberCandidates([]);
+    } finally {
+      setMemberSearchLoading(false);
+    }
+  }, []);
 
-  async function handleSave() {
-    await fetch(`/api/admin/member-accounts/${id}`, {
+  useEffect(() => {
+    const trimmed = memberSearch.trim();
+    if (trimmed.length === 0) {
+      setMemberCandidates([]);
+      setMemberSearchLoading(false);
+      return;
+    }
+    const timer = setTimeout(() => fetchUnassignedMembers(trimmed), 300);
+    return () => clearTimeout(timer);
+  }, [memberSearch, fetchUnassignedMembers]);
+
+  async function handleAddMember(memberAccountId: string) {
+    setMemberActionError("");
+    const res = await fetch(`/api/admin/member-accounts/${memberAccountId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, familyId }),
+      body: JSON.stringify({ familyId: id }),
+    });
+    if (!res.ok) {
+      setMemberActionError(t("error"));
+      return;
+    }
+    setMemberSearch("");
+    setMemberCandidates([]);
+    load();
+  }
+
+  async function handleRemoveMember(memberAccountId: string) {
+    if (!confirm(t("confirmRemoveFromFamily"))) return;
+    setMemberActionError("");
+    const res = await fetch(`/api/admin/member-accounts/${memberAccountId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ familyId: null }),
+    });
+    if (!res.ok) {
+      setMemberActionError(t("error"));
+      return;
+    }
+    load();
+  }
+
+  async function handleSave() {
+    await fetch(`/api/admin/families/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
     });
     setEditing(false);
     load();
   }
 
   async function toggleActive() {
-    const isActive = !(account as { isActive: boolean }).isActive;
-    setMessage("");
-    const res = await fetch(`/api/admin/member-accounts/${id}`, {
+    const isActive = !(family as { isActive: boolean }).isActive;
+    await fetch(`/api/admin/families/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (!isActive && data.cancelledRegistrationCount > 0) {
-        setMessage(
-          t("memberDeactivatedRegistrationsCancelled").replace(
-            "{count}",
-            String(data.cancelledRegistrationCount)
-          )
-        );
-      }
-    }
     load();
   }
 
@@ -90,7 +130,7 @@ export default function AdminMemberDetailPage() {
     e.preventDefault();
     const dollars = parseFloat(paymentAmount);
     if (isNaN(dollars) || dollars <= 0) return;
-    await fetch(`/api/admin/member-accounts/${id}/payment`, {
+    await fetch(`/api/admin/families/${id}/payment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -102,25 +142,11 @@ export default function AdminMemberDetailPage() {
     load();
   }
 
-  async function handleDelete() {
-    if (!confirm(t("confirmDeleteMember"))) return;
-    setDeleteError("");
-    const res = await fetch(`/api/admin/member-accounts/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setDeleteError(
-        data.error === "MEMBER_DELETE_BLOCKED" ? t("deleteMemberBlocked") : t("error")
-      );
-      return;
-    }
-    router.push("/admin/members");
-  }
-
   async function handleAdjustment(e: React.FormEvent) {
     e.preventDefault();
     const dollars = parseFloat(adjustAmount);
     if (isNaN(dollars) || !adjustDesc) return;
-    await fetch(`/api/admin/member-accounts/${id}/adjustment`, {
+    await fetch(`/api/admin/families/${id}/adjustment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -133,90 +159,134 @@ export default function AdminMemberDetailPage() {
     load();
   }
 
-  if (!account) return <p>{t("loading")}</p>;
+  async function handleDelete() {
+    if (!confirm(t("confirmDeleteFamily"))) return;
+    setDeleteError("");
+    const res = await fetch(`/api/admin/families/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(
+        data.error === "FAMILY_DELETE_BLOCKED" ? t("deleteFamilyBlocked") : t("error")
+      );
+      return;
+    }
+    router.push("/admin/families");
+  }
 
-  const acc = account as {
+  if (!family) return <p>{t("loading")}</p>;
+
+  const fam = family as {
     displayName: string;
     balanceCents: number;
     isActive: boolean;
-    family: { id: string; displayName: string } | null;
+    members: Array<{ id: string; displayName: string; isActive: boolean }>;
     transactions: Array<{
-      memberAccount: { displayName: string };
       id: string;
       type: string;
       amountCents: number;
       balanceAfterCents: number;
       description: string | null;
       createdAt: string;
+      memberAccount: { displayName: string };
       event: { title: string; eventDate: string } | null;
-    }>;
-    registrations: Array<{
-      id: string;
-      registeredParticipantCount: number;
-      status: string;
-      event: { title: string; eventDate: string; status: string };
     }>;
   };
 
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm">
-        <Link href="/admin/members">← {t("members")}</Link>
+        <Link href="/admin/families">← {t("families")}</Link>
       </Button>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold">{acc.displayName}</h1>
-          <p className={`text-2xl font-bold ${acc.balanceCents < 0 ? "text-destructive" : "text-green-700"}`}>
-            {formatCents(acc.balanceCents)}
+          <h1 className="text-xl font-bold">{fam.displayName}</h1>
+          <p className={`text-2xl font-bold ${fam.balanceCents < 0 ? "text-destructive" : "text-green-700"}`}>
+            {formatCents(fam.balanceCents)}
           </p>
-          {acc.family && (
-            <p className="text-sm text-muted-foreground">
-              {t("family")}:{" "}
-              <Link href={`/admin/families/${acc.family.id}`} className="text-primary hover:underline">
-                {acc.family.displayName}
-              </Link>
-            </p>
-          )}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setEditing(!editing)}>{t("edit")}</Button>
           <Button variant="outline" onClick={toggleActive}>
-            {acc.isActive ? t("deactivate") : t("reactivate")}
+            {fam.isActive ? t("deactivate") : t("reactivate")}
           </Button>
           <Button variant="destructive" onClick={handleDelete}>{t("delete")}</Button>
         </div>
       </div>
 
       {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
-      {message && <p className="text-sm text-green-700">{message}</p>}
 
       {editing && (
         <Card>
           <CardContent className="space-y-3 pt-4">
-            <div><Label>{t("displayName")}</Label><Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} /></div>
+            <div><Label>{t("familyName")}</Label><Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} /></div>
             <div><Label>{t("phone")}</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><Label>{t("email")}</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div><Label>{t("notes")}</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-            <div>
-              <Label>{t("assignFamily")}</Label>
-              <Select
-                value={familyId ?? "none"}
-                onValueChange={(value) => setFamilyId(value === "none" ? null : value)}
-              >
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("noFamily")}</SelectItem>
-                  {families.map((family) => (
-                    <SelectItem key={family.id} value={family.id}>{family.displayName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <Button onClick={handleSave}>{t("save")}</Button>
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle>{t("familyMembers")}</CardTitle></CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          {fam.members.length === 0 ? (
+            <p className="text-muted-foreground">{t("noResults")}</p>
+          ) : (
+            <ul className="space-y-2">
+              {fam.members.map((member) => (
+                <li key={member.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <Link href={`/admin/members/${member.id}`} className="hover:underline">
+                    {member.displayName} {!member.isActive && `(${t("inactive")})`}
+                  </Link>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRemoveMember(member.id)}
+                  >
+                    {t("removeFromFamily")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="space-y-2 border-t pt-4">
+            <Label>{t("addMemberToFamily")}</Label>
+            <Input
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              placeholder={t("searchUnassignedMemberPlaceholder")}
+            />
+            {memberSearch.trim().length > 0 && (
+              <div className="max-h-40 overflow-y-auto rounded-md border">
+                {memberSearchLoading ? (
+                  <p className="p-3 text-muted-foreground">{t("loading")}</p>
+                ) : memberCandidates.length === 0 ? (
+                  <p className="p-3 text-muted-foreground">{t("noResults")}</p>
+                ) : (
+                  memberCandidates.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => handleAddMember(member.id)}
+                      className="flex w-full px-3 py-2 text-left hover:bg-accent"
+                    >
+                      {member.displayName}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {memberActionError && (
+            <p className="text-sm text-destructive">{memberActionError}</p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -255,16 +325,16 @@ export default function AdminMemberDetailPage() {
           <table className="w-full text-sm">
             <thead><tr className="border-b">
               <th className="p-2 text-left">{t("date")}</th>
-              {acc.family && <th className="p-2 text-left">{t("member")}</th>}
+              <th className="p-2 text-left">{t("member")}</th>
               <th className="p-2 text-left">{t("type")}</th>
               <th className="p-2 text-right">{t("amount")}</th>
               <th className="p-2 text-right">{t("balanceAfter")}</th>
             </tr></thead>
             <tbody>
-              {acc.transactions.map((txn) => (
+              {fam.transactions.map((txn) => (
                 <tr key={txn.id} className="border-b">
                   <td className="p-2">{formatDate(txn.createdAt)}</td>
-                  {acc.family && <td className="p-2">{txn.memberAccount.displayName}</td>}
+                  <td className="p-2">{txn.memberAccount.displayName}</td>
                   <td className="p-2">{tNested(`transactionTypes.${txn.type}`)}</td>
                   <td className={`p-2 text-right ${txn.amountCents < 0 ? "text-destructive" : ""}`}>{formatCents(txn.amountCents)}</td>
                   <td className="p-2 text-right">{formatCents(txn.balanceAfterCents)}</td>
@@ -272,17 +342,6 @@ export default function AdminMemberDetailPage() {
               ))}
             </tbody>
           </table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("registrationHistory")}</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {acc.registrations.map((r) => (
-            <p key={r.id}>
-              {formatDate(r.event.eventDate)} · {r.event.title} · {r.registeredParticipantCount} · {tNested(`registrationStatus.${r.status}`)}
-            </p>
-          ))}
         </CardContent>
       </Card>
     </div>

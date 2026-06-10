@@ -16,25 +16,57 @@ async function main() {
 
   console.log(`Admin user: ${admin.username}`);
 
-  const members = [
-    { id: "seed-zhang-family", displayName: "张三家庭", phone: "555-0101", email: "zhang@example.com" },
-    { id: "seed-chen-family", displayName: "John and Mary Chen", phone: "555-0102" },
-    { id: "seed-li-si", displayName: "李四", balanceCents: 5000 },
+  const families = [
+    {
+      id: "seed-zhang-family",
+      displayName: "张三家庭",
+      phone: "555-0101",
+      email: "zhang@example.com",
+      members: ["张三", "张太太"],
+    },
+    {
+      id: "seed-chen-family",
+      displayName: "John and Mary Chen",
+      phone: "555-0102",
+      members: ["John Chen", "Mary Chen"],
+    },
   ];
 
-  for (const m of members) {
-    await prisma.memberAccount.upsert({
-      where: { id: m.id },
+  for (const familySeed of families) {
+    const family = await prisma.family.upsert({
+      where: { id: familySeed.id },
       update: {},
       create: {
-        id: m.id,
-        displayName: m.displayName,
-        phone: m.phone,
-        email: m.email,
-        balanceCents: m.balanceCents ?? 0,
+        id: familySeed.id,
+        displayName: familySeed.displayName,
+        phone: familySeed.phone,
+        email: familySeed.email,
       },
     });
+
+    for (const memberName of familySeed.members) {
+      const memberId = `${family.id}-${memberName.replace(/\s+/g, "-").toLowerCase()}`;
+      await prisma.memberAccount.upsert({
+        where: { id: memberId },
+        update: {},
+        create: {
+          id: memberId,
+          displayName: memberName,
+          familyId: family.id,
+        },
+      });
+    }
   }
+
+  await prisma.memberAccount.upsert({
+    where: { id: "seed-li-si" },
+    update: {},
+    create: {
+      id: "seed-li-si",
+      displayName: "李四",
+      balanceCents: 5000,
+    },
+  });
 
   const now = new Date();
   const tomorrow = new Date(now);
@@ -100,9 +132,9 @@ async function main() {
     create: {
       key: "USAGE_INSTRUCTIONS",
       contentZh:
-        "1. 在「添加新名字」中创建或选择您的姓名/家庭账户。\n2. 在日历上点击可报名日期，查看活动详情并提交报名。\n3. 在「我的报名」中查看或取消报名；在「余额」中查看账户余额。\n4. 活动费用结算后，请通过「付款信息」页面使用 Zelle 或 Venmo 付款。",
+        "1. 在「添加新名字」中创建您的姓名，并选择加入现有家庭或创建新家庭。\n2. 在日历上点击可报名日期，查看活动详情并提交报名。\n3. 在「我的报名」中查看或取消报名；在「余额」中查看家庭共享余额。\n4. 活动费用结算后，请通过「付款信息」页面使用 Zelle 或 Venmo 付款。",
       contentEn:
-        '1. Use "Add New Name" to create or select your name/family account.\n2. Tap an available date on the calendar to view event details and register.\n3. Use "My Registrations" to view or cancel registrations; check your balance on the Balance page.\n4. After event fees are settled, pay via Zelle or Venmo on the Payment Info page.',
+        '1. Use "Add New Name" to create your name and join an existing family or create a new one.\n2. Tap an available date on the calendar to view event details and register.\n3. Use "My Registrations" to view or cancel registrations; check your shared family balance on the Balance page.\n4. After event fees are settled, pay via Zelle or Venmo on the Payment Info page.',
     },
   });
 

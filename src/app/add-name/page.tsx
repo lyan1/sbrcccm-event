@@ -4,12 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PublicLayout } from "@/components/public-layout";
+import { FamilyPicker } from "@/components/family-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n";
 import { setSelectedMember } from "@/lib/member-storage";
+
+type AccountType = "individual" | "join_family" | "create_family";
 
 export default function AddNamePage() {
   const { t } = useI18n();
@@ -18,6 +21,10 @@ export default function AddNamePage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("join_family");
+  const [familyId, setFamilyId] = useState("");
+  const [familyLabel, setFamilyLabel] = useState("");
+  const [newFamilyDisplayName, setNewFamilyDisplayName] = useState("");
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -35,19 +42,35 @@ export default function AddNamePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!displayName.trim()) return;
+    if (accountType === "join_family" && !familyId) {
+      setError(t("error"));
+      return;
+    }
+    if (accountType === "create_family" && !newFamilyDisplayName.trim()) {
+      setError(t("error"));
+      return;
+    }
 
     setSubmitting(true);
     setError("");
 
+    const body: Record<string, string | undefined> = {
+      displayName: displayName.trim(),
+      phone: phone || undefined,
+      email: email || undefined,
+      notes: notes || undefined,
+    };
+
+    if (accountType === "join_family") {
+      body.familyId = familyId;
+    } else if (accountType === "create_family") {
+      body.newFamilyDisplayName = newFamilyDisplayName.trim();
+    }
+
     const res = await fetch("/api/member-accounts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        displayName: displayName.trim(),
-        phone: phone || undefined,
-        email: email || undefined,
-        notes: notes || undefined,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -85,6 +108,63 @@ export default function AddNamePage() {
             />
             {warning && <p className="mt-1 text-sm text-amber-600">{warning}</p>}
           </div>
+
+          <div className="space-y-2">
+            <Label>{t("accountType")}</Label>
+            <div className="space-y-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="accountType"
+                  checked={accountType === "join_family"}
+                  onChange={() => setAccountType("join_family")}
+                />
+                {t("joinExistingFamily")}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="accountType"
+                  checked={accountType === "create_family"}
+                  onChange={() => setAccountType("create_family")}
+                />
+                {t("createNewFamily")}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="accountType"
+                  checked={accountType === "individual"}
+                  onChange={() => setAccountType("individual")}
+                />
+                {t("individualAccount")}
+              </label>
+            </div>
+          </div>
+
+          {accountType === "join_family" && (
+            <FamilyPicker
+              value={familyId}
+              selectedLabel={familyLabel}
+              onChange={(family) => {
+                setFamilyId(family?.id ?? "");
+                setFamilyLabel(family?.displayName ?? "");
+              }}
+            />
+          )}
+
+          {accountType === "create_family" && (
+            <div>
+              <Label htmlFor="newFamilyDisplayName">{t("familyName")} *</Label>
+              <Input
+                id="newFamilyDisplayName"
+                value={newFamilyDisplayName}
+                onChange={(e) => setNewFamilyDisplayName(e.target.value)}
+                required
+                className="mt-1"
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="phone">{t("phone")}</Label>

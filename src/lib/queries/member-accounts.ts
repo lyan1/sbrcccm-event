@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getDateRangeStart } from "@/lib/utils";
+import { effectiveBalanceCents } from "@/lib/family-balance";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -42,7 +43,11 @@ export async function searchMemberAccounts(query?: string) {
       isActive: true,
       ...(q ? { displayName: { contains: q, mode: "insensitive" as const } } : {}),
     },
-    select: { id: true, displayName: true },
+    select: {
+      id: true,
+      displayName: true,
+      family: { select: { id: true, displayName: true } },
+    },
     orderBy: { displayName: "asc" },
   });
 }
@@ -50,7 +55,16 @@ export async function searchMemberAccounts(query?: string) {
 export async function getMemberBalance(memberAccountId: string) {
   const account = await prisma.memberAccount.findUnique({
     where: { id: memberAccountId },
-    select: { id: true, displayName: true, balanceCents: true, isActive: true },
+    select: {
+      id: true,
+      displayName: true,
+      balanceCents: true,
+      isActive: true,
+      familyId: true,
+      family: {
+        select: { id: true, displayName: true, balanceCents: true, isActive: true },
+      },
+    },
   });
 
   if (!account) return null;
@@ -58,20 +72,32 @@ export async function getMemberBalance(memberAccountId: string) {
   return {
     memberAccountId: account.id,
     displayName: account.displayName,
-    balanceCents: account.balanceCents,
+    balanceCents: effectiveBalanceCents(account),
+    family: account.family
+      ? { id: account.family.id, displayName: account.family.displayName }
+      : null,
   };
 }
 
 export async function getMemberTransactions(memberAccountId: string, range = "3m") {
+  const account = await prisma.memberAccount.findUnique({
+    where: { id: memberAccountId },
+    select: { familyId: true },
+  });
+  if (!account) return [];
+
   const from = getDateRangeStart(range);
 
   const transactions = await prisma.transaction.findMany({
     where: {
-      memberAccountId,
+      ...(account.familyId
+        ? { familyId: account.familyId }
+        : { memberAccountId, familyId: null }),
       ...(from ? { createdAt: { gte: from } } : {}),
     },
     include: {
       event: { select: { title: true, eventDate: true } },
+      memberAccount: { select: { displayName: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -81,6 +107,7 @@ export async function getMemberTransactions(memberAccountId: string, range = "3m
     type: t.type,
     amountCents: t.amountCents,
     balanceAfterCents: t.balanceAfterCents,
+    memberDisplayName: t.memberAccount.displayName,
     eventTitle: t.event?.title,
     eventDate: t.event?.eventDate,
     paymentMethod: t.paymentMethod,

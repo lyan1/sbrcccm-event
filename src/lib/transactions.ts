@@ -5,6 +5,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "./db";
 import { logAudit } from "./audit";
+import { loadMemberWithFamily } from "./family-balance";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -22,15 +23,33 @@ export async function createTransaction(
   },
   client: TxClient = prisma
 ) {
-  const account = await client.memberAccount.findUniqueOrThrow({
-    where: { id: params.memberAccountId },
-  });
+  const member = await loadMemberWithFamily(params.memberAccountId, client);
+  if (!member) {
+    throw new Error("Member account not found");
+  }
 
-  const newBalance = account.balanceCents + params.amountCents;
+  let newBalance: number;
+  let familyId: string | null = null;
+
+  if (member.family) {
+    newBalance = member.family.balanceCents + params.amountCents;
+    familyId = member.family.id;
+    await client.family.update({
+      where: { id: member.family.id },
+      data: { balanceCents: newBalance },
+    });
+  } else {
+    newBalance = member.balanceCents + params.amountCents;
+    await client.memberAccount.update({
+      where: { id: params.memberAccountId },
+      data: { balanceCents: newBalance },
+    });
+  }
 
   const transaction = await client.transaction.create({
     data: {
       memberAccountId: params.memberAccountId,
+      familyId,
       amountCents: params.amountCents,
       balanceAfterCents: newBalance,
       type: params.type,
@@ -41,11 +60,6 @@ export async function createTransaction(
       description: params.description,
       createdByAdminId: params.createdByAdminId,
     },
-  });
-
-  await client.memberAccount.update({
-    where: { id: params.memberAccountId },
-    data: { balanceCents: newBalance },
   });
 
   return { transaction, newBalance };
