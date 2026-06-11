@@ -1,41 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { assertCanManageEventRoster } from "@/lib/event-roster";
-import { actualCountSchema } from "@/lib/validation";
 
-export async function PATCH(
-  req: NextRequest,
+export async function POST(
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  try {
-    const body = await req.json();
-    const parsed = actualCountSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-    }
 
+  try {
     const reg = await prisma.eventRegistration.findUnique({
       where: { id },
       include: { event: true },
     });
     if (!reg) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (reg.status === "CANCELLED") {
+      return NextResponse.json({ error: "Already cancelled" }, { status: 400 });
+    }
+
     assertCanManageEventRoster(reg.event);
 
     const updated = await prisma.eventRegistration.update({
       where: { id },
       data: {
-        actualParticipantCount: parsed.data.actualParticipantCount,
-        adminNote: parsed.data.adminNote,
+        status: "CANCELLED",
+        actualParticipantCount: 0,
+        cancelledAt: new Date(),
       },
     });
 
+    await logAudit({
+      actorType: "ADMIN",
+      actorId: session.adminId,
+      action: "REGISTRATION_CANCELLED_BY_ADMIN",
+      entityType: "EventRegistration",
+      entityId: id,
+    });
+
     return NextResponse.json(updated);
-  } catch {
-    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Cancel failed";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -10,7 +10,14 @@ interface CountInputProps extends Omit<React.ComponentProps<typeof Input>, "valu
   min?: number;
 }
 
-export function CountInput({ value, onChange, min = 1, className, ...props }: CountInputProps) {
+export function CountInput({
+  value,
+  onChange,
+  min = 1,
+  className,
+  onBlur,
+  ...props
+}: CountInputProps) {
   return (
     <Input
       type="text"
@@ -22,7 +29,10 @@ export function CountInput({ value, onChange, min = 1, className, ...props }: Co
         if (next !== "" && !/^\d+$/.test(next)) return;
         onChange(next);
       }}
-      onBlur={() => onChange(normalizeCountDraft(value, min))}
+      onBlur={(e) => {
+        onChange(normalizeCountDraft(value, min));
+        onBlur?.(e);
+      }}
       className={cn(className)}
       {...props}
     />

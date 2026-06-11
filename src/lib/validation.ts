@@ -95,6 +95,24 @@ export const actualCountSchema = z.object({
   adminNote: z.string().max(500).optional(),
 });
 
+export const adminAddEventRegistrationSchema = z.object({
+  memberAccountId: z.string().min(1),
+  participantCount: z.number().int().positive(),
+});
+
+export const adminUpdateEventRegistrationSchema = z
+  .object({
+    registeredParticipantCount: z.number().int().min(0).optional(),
+    actualParticipantCount: z.number().int().min(0).optional(),
+    adminNote: z.string().max(500).optional(),
+  })
+  .refine(
+    (data) =>
+      data.registeredParticipantCount !== undefined ||
+      data.actualParticipantCount !== undefined,
+    { message: "At least one count field is required" }
+  );
+
 export const promotionalCardSchema = z.object({
   titleZh: z.string().min(1).max(200),
   titleEn: z.string().max(200).optional().nullable(),

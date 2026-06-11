@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { useI18n } from "@/lib/i18n";
 import { formatCents, formatDate, formatTime } from "@/lib/utils";
 import { APP_TIMEZONE, formatEventDateKey, formatEventTimeKey } from "@/lib/timezone";
 import { getAdminEventDisplayStatus, needsSettlement } from "@/lib/calendar";
+import { canManageEventRoster } from "@/lib/event-roster";
 import { downloadFromPost, downloadGet } from "@/lib/download";
 
 interface Registration {
@@ -46,6 +47,11 @@ interface SettlementPreview {
   hasOverrides: boolean;
 }
 
+interface MemberOption {
+  id: string;
+  displayName: string;
+}
+
 export default function AdminEventDetailPage() {
   const { t, tNested } = useI18n();
   const params = useParams();
@@ -54,7 +60,14 @@ export default function AdminEventDetailPage() {
   const [event, setEvent] = useState<Record<string, unknown> | null>(null);
   const [totalCost, setTotalCost] = useState("");
   const [actualCounts, setActualCounts] = useState<Record<string, string>>({});
+  const [registeredCounts, setRegisteredCounts] = useState<Record<string, string>>({});
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [rosterError, setRosterError] = useState("");
+  const [addMemberQuery, setAddMemberQuery] = useState("");
+  const [addMemberResults, setAddMemberResults] = useState<MemberOption[]>([]);
+  const [selectedAddMember, setSelectedAddMember] = useState<MemberOption | null>(null);
+  const [addMemberCount, setAddMemberCount] = useState("1");
+  const [addingMember, setAddingMember] = useState(false);
   const [preview, setPreview] = useState<SettlementPreview | null>(null);
   const [message, setMessage] = useState("");
   const [editError, setEditError] = useState("");
@@ -76,13 +89,19 @@ export default function AdminEventDetailPage() {
       .then((data) => {
         setEvent(data);
         const counts: Record<string, string> = {};
+        const regCounts: Record<string, string> = {};
         (data.registrations as Registration[]).forEach((r) => {
+          regCounts[r.id] = String(r.registeredParticipantCount);
           counts[r.id] = String(
             r.actualParticipantCount ??
               (r.status === "CANCELLED" ? 0 : r.registeredParticipantCount),
           );
         });
         setActualCounts(counts);
+        setRegisteredCounts(regCounts);
+        if (data.totalCostCents != null) {
+          setTotalCost(String((data.totalCostCents as number) / 100));
+        }
         setEditForm({
           title: data.title as string,
           eventDate: formatEventDateKey(new Date(data.eventDate as string)),
@@ -97,15 +116,110 @@ export default function AdminEventDetailPage() {
 
   useEffect(() => { load(); }, [id]);
 
+  const fetchMembers = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setAddMemberResults([]);
+      return;
+    }
+    const res = await fetch(
+      `/api/admin/member-accounts?q=${encodeURIComponent(q)}&isActive=true`
+    );
+    if (!res.ok) {
+      setAddMemberResults([]);
+      return;
+    }
+    const data = (await res.json()) as MemberOption[];
+    setAddMemberResults(Array.isArray(data) ? data : []);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => fetchMembers(addMemberQuery), 300);
+    return () => clearTimeout(timer);
+  }, [addMemberQuery, fetchMembers]);
+
   function buildItems() {
     const regs = (event as { registrations: Registration[] }).registrations;
-    return regs.map((r) => ({
+    return regs
+      .filter((r) => r.status === "REGISTERED")
+      .map((r) => ({
       registrationId: r.id,
       actualParticipantCount: parseCount(actualCounts[r.id] ?? "0", 0),
       overrideDeductionCents: overrides[r.id]
         ? Math.round(parseFloat(overrides[r.id]) * 100)
         : null,
     }));
+  }
+
+  async function saveRegistrationCounts(regId: string) {
+    setRosterError("");
+    const res = await fetch(`/api/admin/registrations/${regId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        registeredParticipantCount: parseCount(registeredCounts[regId] ?? "0", 0),
+        actualParticipantCount: parseCount(actualCounts[regId] ?? "0", 0),
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRosterError((data.error as string) ?? t("error"));
+      return;
+    }
+    setMessage(t("rosterUpdated"));
+    load();
+  }
+
+  async function handleRemoveRegistration(regId: string) {
+    if (!confirm(t("confirmRemoveFromRoster"))) return;
+    setRosterError("");
+    const res = await fetch(`/api/admin/registrations/${regId}/cancel`, { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRosterError((data.error as string) ?? t("error"));
+      return;
+    }
+    load();
+  }
+
+  async function handleAddMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedAddMember) return;
+    setRosterError("");
+    setAddingMember(true);
+    const res = await fetch(`/api/admin/events/${id}/registrations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        memberAccountId: selectedAddMember.id,
+        participantCount: parseCount(addMemberCount, 1),
+      }),
+    });
+    setAddingMember(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRosterError((data.error as string) ?? t("error"));
+      return;
+    }
+    setAddMemberQuery("");
+    setSelectedAddMember(null);
+    setAddMemberCount("1");
+    setAddMemberResults([]);
+    setMessage(t("rosterUpdated"));
+    load();
+  }
+
+  async function handleReopenSettlement() {
+    if (!confirm(t("reopenSettlementConfirm"))) return;
+    setRosterError("");
+    const res = await fetch(`/api/admin/events/${id}/unsettle`, { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRosterError((data.error as string) ?? t("error"));
+      return;
+    }
+    setMessage(t("reopenSettlementSuccess"));
+    setPreview(null);
+    load();
   }
 
   async function handlePreview() {
@@ -218,7 +332,15 @@ export default function AdminEventDetailPage() {
   const adminStatus = getAdminEventDisplayStatus(ev.status, ev.eventDate, ev.endTime);
   const canCancel = adminStatus === "OPEN";
   const canSettle = needsSettlement(ev.status, ev.eventDate, ev.endTime);
+  const canManageRoster = canManageEventRoster({
+    status: ev.status,
+    eventDate: ev.eventDate,
+    endTime: ev.endTime,
+  });
   const isCompleted = ev.status === "COMPLETED";
+  const registeredMemberIds = new Set(
+    ev.registrations.filter((r) => r.status === "REGISTERED").map((r) => r.memberAccount.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -236,9 +358,18 @@ export default function AdminEventDetailPage() {
           {ev.address && <p className="text-sm text-muted-foreground">{ev.address}</p>}
           <Badge className="mt-2">{tNested(`adminEventStatuses.${adminStatus}`)}</Badge>
         </div>
-        {canCancel && (
-          <Button variant="destructive" size="sm" onClick={handleCancelEvent}>{t("cancel")} Event</Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canCancel && (
+            <Button variant="destructive" size="sm" onClick={handleCancelEvent}>
+              {t("cancel")} Event
+            </Button>
+          )}
+          {isCompleted && (
+            <Button variant="outline" size="sm" onClick={handleReopenSettlement}>
+              {t("reopenSettlement")}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-4 text-sm">
@@ -330,7 +461,10 @@ export default function AdminEventDetailPage() {
 
       <Card>
         <CardHeader><CardTitle>{t("registrationList")}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="space-y-4 overflow-x-auto">
+          {canManageRoster && (
+            <p className="text-sm text-muted-foreground">{t("rosterEditHint")}</p>
+          )}
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted">
@@ -338,7 +472,8 @@ export default function AdminEventDetailPage() {
                 <th className="p-2 text-left">{t("status")}</th>
                 <th className="p-2 text-right">{t("registeredCount")}</th>
                 <th className="p-2 text-right">{t("actualParticipants")}</th>
-                {!isCompleted && <th className="p-2 text-right">{t("overrideDeduction")} ($)</th>}
+                {canSettle && <th className="p-2 text-right">{t("overrideDeduction")} ($)</th>}
+                {canManageRoster && <th className="p-2 text-right">{t("actions")}</th>}
               </tr>
             </thead>
             <tbody>
@@ -346,11 +481,23 @@ export default function AdminEventDetailPage() {
                 <tr key={r.id} className="border-b">
                   <td className="p-2">{r.memberAccount.displayName}</td>
                   <td className="p-2">{tNested(`registrationStatus.${r.status}`)}</td>
-                  <td className="p-2 text-right">{r.registeredParticipantCount}</td>
                   <td className="p-2 text-right">
-                    {isCompleted ? (
-                      r.actualParticipantCount ?? 0
+                    {canManageRoster && r.status === "REGISTERED" ? (
+                      <CountInput
+                        min={0}
+                        className="ml-auto w-16"
+                        value={registeredCounts[r.id] ?? "0"}
+                        onChange={(value) =>
+                          setRegisteredCounts((c) => ({ ...c, [r.id]: value }))
+                        }
+                        onBlur={() => saveRegistrationCounts(r.id)}
+                      />
                     ) : (
+                      r.registeredParticipantCount
+                    )}
+                  </td>
+                  <td className="p-2 text-right">
+                    {canManageRoster && r.status === "REGISTERED" ? (
                       <CountInput
                         min={0}
                         className="ml-auto w-16"
@@ -358,10 +505,13 @@ export default function AdminEventDetailPage() {
                         onChange={(value) =>
                           setActualCounts((c) => ({ ...c, [r.id]: value }))
                         }
+                        onBlur={() => saveRegistrationCounts(r.id)}
                       />
+                    ) : (
+                      r.actualParticipantCount ?? 0
                     )}
                   </td>
-                  {!isCompleted && (
+                  {canSettle && r.status === "REGISTERED" && (
                     <td className="p-2 text-right">
                       <Input
                         type="number"
@@ -376,10 +526,76 @@ export default function AdminEventDetailPage() {
                       />
                     </td>
                   )}
+                  {canSettle && r.status !== "REGISTERED" && <td className="p-2" />}
+                  {canManageRoster && (
+                    <td className="p-2 text-right">
+                      {r.status === "REGISTERED" && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveRegistration(r.id)}
+                        >
+                          {t("removeFromRoster")}
+                        </Button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {canManageRoster && (
+            <form onSubmit={handleAddMember} className="flex flex-wrap items-end gap-2 border-t pt-4">
+              <div className="min-w-[200px] flex-1 space-y-1">
+                <Label>{t("addMemberToRoster")}</Label>
+                <Input
+                  value={addMemberQuery}
+                  onChange={(e) => {
+                    setAddMemberQuery(e.target.value);
+                    setSelectedAddMember(null);
+                  }}
+                  placeholder={t("searchMember")}
+                />
+                {addMemberResults.length > 0 && !selectedAddMember && (
+                  <ul className="max-h-40 overflow-y-auto rounded-md border bg-background">
+                    {addMemberResults
+                      .filter((m) => !registeredMemberIds.has(m.id))
+                      .map((m) => (
+                        <li key={m.id}>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                            onClick={() => {
+                              setSelectedAddMember(m);
+                              setAddMemberQuery(m.displayName);
+                              setAddMemberResults([]);
+                            }}
+                          >
+                            {m.displayName}
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label>{t("actualParticipants")}</Label>
+                <CountInput
+                  min={1}
+                  className="w-16"
+                  value={addMemberCount}
+                  onChange={setAddMemberCount}
+                />
+              </div>
+              <Button type="submit" disabled={!selectedAddMember || addingMember}>
+                {t("addToRoster")}
+              </Button>
+            </form>
+          )}
+
+          {rosterError && <p className="text-sm text-destructive">{rosterError}</p>}
         </CardContent>
       </Card>
 
@@ -448,6 +664,9 @@ export default function AdminEventDetailPage() {
       )}
 
       {message && <p className="text-sm text-green-700">{message}</p>}
+      {rosterError && !canManageRoster && (
+        <p className="text-sm text-destructive">{rosterError}</p>
+      )}
     </div>
   );
 }

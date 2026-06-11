@@ -320,6 +320,72 @@ export async function confirmSettlement(
   });
 }
 
+export async function reopenSettlement(eventId: string, adminId: string) {
+  return prisma.$transaction(async (tx) => {
+    const event = await tx.pickleballEvent.findUniqueOrThrow({
+      where: { id: eventId },
+      select: { id: true, title: true, status: true },
+    });
+
+    if (event.status !== "COMPLETED") {
+      throw new Error("Only settled events can be reopened");
+    }
+
+    const gameFees = await tx.transaction.findMany({
+      where: { eventId, type: "GAME_FEE" },
+      orderBy: { createdAt: "asc" },
+    });
+
+    for (const fee of gameFees) {
+      const reversalMarker = `[reversal:${fee.id}]`;
+      const existingReversal = await tx.transaction.findFirst({
+        where: {
+          eventId,
+          type: "REVERSAL",
+          description: { contains: reversalMarker },
+        },
+      });
+      if (existingReversal) continue;
+
+      const refundCents = -fee.amountCents;
+      if (refundCents === 0) continue;
+
+      await createTransaction(
+        {
+          memberAccountId: fee.memberAccountId,
+          amountCents: refundCents,
+          type: "REVERSAL",
+          eventId,
+          calculatedAmountCents: fee.calculatedAmountCents ?? undefined,
+          finalAmountCents: fee.finalAmountCents ?? undefined,
+          description: `Settlement correction – fee refunded (${event.title}) ${reversalMarker}`,
+          createdByAdminId: adminId,
+        },
+        tx
+      );
+    }
+
+    await tx.pickleballEvent.update({
+      where: { id: eventId },
+      data: {
+        status: "OPEN",
+        settledAt: null,
+        settledByAdminId: null,
+      },
+    });
+
+    await logAudit({
+      actorType: "ADMIN",
+      actorId: adminId,
+      action: "EVENT_SETTLEMENT_REOPENED",
+      entityType: "PickleballEvent",
+      entityId: eventId,
+    });
+
+    return event;
+  });
+}
+
 export async function fetchActiveMemberBalances() {
   const units = await fetchActiveBalanceUnits();
   return balanceUnitsForSnapshot(units);

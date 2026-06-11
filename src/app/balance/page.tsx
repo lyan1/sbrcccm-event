@@ -10,6 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useI18n } from "@/lib/i18n";
 import { formatCents, formatDate } from "@/lib/utils";
 import { getSelectedMember, setSelectedMember } from "@/lib/member-storage";
+import {
+  getPublicTransactionTypeKey,
+  isSettlementRefundReversal,
+  stripInternalTransactionNote,
+} from "@/lib/transaction-display";
 
 interface Transaction {
   id: string;
@@ -131,13 +136,17 @@ export default function BalancePage() {
               <p className="text-muted-foreground">{t("noTransactions")}</p>
             ) : (
               <div className="space-y-2">
-                {transactions.map((txn) => (
+                {transactions.map((txn) => {
+                  const publicDescription = stripInternalTransactionNote(txn.description);
+                  return (
                   <Card key={txn.id}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="font-medium">
-                            {tNested(`transactionTypes.${txn.type}`)}
+                            {tNested(
+                              `transactionTypes.${getPublicTransactionTypeKey(txn.type, txn.description)}`
+                            )}
                             {txn.memberDisplayName && familyName && (
                               <span className="ml-1 text-xs font-normal text-muted-foreground">
                                 · {txn.memberDisplayName}
@@ -153,8 +162,9 @@ export default function BalancePage() {
                               {txn.eventDate && ` · ${formatDate(txn.eventDate, locale)}`}
                             </p>
                           )}
-                          {txn.description && (
-                            <p className="text-sm">{txn.description}</p>
+                          {publicDescription &&
+                            !isSettlementRefundReversal(txn.type, txn.description) && (
+                            <p className="text-sm">{publicDescription}</p>
                           )}
                         </div>
                         <div className="text-right">
@@ -170,7 +180,8 @@ export default function BalancePage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
