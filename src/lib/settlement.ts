@@ -9,6 +9,9 @@ import {
   walletKey,
 } from "./family-balance";
 
+/** Settlement touches many rows sequentially; default 5s Prisma timeout is too low on pooled DBs. */
+const SETTLEMENT_TX_OPTIONS = { timeout: 30_000 } as const;
+
 export interface SettlementItemInput {
   registrationId: string;
   actualParticipantCount: number;
@@ -227,7 +230,7 @@ export async function confirmSettlement(
   items: SettlementItemInput[],
   adminId: string
 ) {
-  return prisma.$transaction(async (tx) => {
+  const preview = await prisma.$transaction(async (tx) => {
     const event = await tx.pickleballEvent.findUniqueOrThrow({
       where: { id: eventId },
       include: {
@@ -270,12 +273,14 @@ export async function confirmSettlement(
 
     const preview = calculateDeductions(totalCostCents, settlementItems);
 
-    for (const item of preview.items) {
-      await tx.eventRegistration.update({
-        where: { id: item.registrationId },
-        data: { actualParticipantCount: item.actualParticipantCount },
-      });
-    }
+    await Promise.all(
+      preview.items.map((item) =>
+        tx.eventRegistration.update({
+          where: { id: item.registrationId },
+          data: { actualParticipantCount: item.actualParticipantCount },
+        })
+      )
+    );
 
     for (const item of preview.items) {
       if (item.finalDeductionCents <= 0) continue;
@@ -307,21 +312,23 @@ export async function confirmSettlement(
       },
     });
 
-    await logAudit({
-      actorType: "ADMIN",
-      actorId: adminId,
-      action: "EVENT_SETTLED",
-      entityType: "PickleballEvent",
-      entityId: eventId,
-      newValue: preview,
-    });
-
     return preview;
+  }, SETTLEMENT_TX_OPTIONS);
+
+  await logAudit({
+    actorType: "ADMIN",
+    actorId: adminId,
+    action: "EVENT_SETTLED",
+    entityType: "PickleballEvent",
+    entityId: eventId,
+    newValue: preview,
   });
+
+  return preview;
 }
 
 export async function reopenSettlement(eventId: string, adminId: string) {
-  return prisma.$transaction(async (tx) => {
+  const event = await prisma.$transaction(async (tx) => {
     const event = await tx.pickleballEvent.findUniqueOrThrow({
       where: { id: eventId },
       select: { id: true, title: true, status: true },
@@ -374,16 +381,18 @@ export async function reopenSettlement(eventId: string, adminId: string) {
       },
     });
 
-    await logAudit({
-      actorType: "ADMIN",
-      actorId: adminId,
-      action: "EVENT_SETTLEMENT_REOPENED",
-      entityType: "PickleballEvent",
-      entityId: eventId,
-    });
-
     return event;
+  }, SETTLEMENT_TX_OPTIONS);
+
+  await logAudit({
+    actorType: "ADMIN",
+    actorId: adminId,
+    action: "EVENT_SETTLEMENT_REOPENED",
+    entityType: "PickleballEvent",
+    entityId: eventId,
   });
+
+  return event;
 }
 
 export async function fetchActiveMemberBalances() {
