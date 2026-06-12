@@ -3,7 +3,7 @@ import {
   Prisma,
   TransactionType,
 } from "@prisma/client";
-import { prisma } from "./db";
+import { logDbError, prisma, withDbRetry } from "./db";
 import { logAudit } from "./audit";
 import { loadMemberWithFamily } from "./family-balance";
 
@@ -72,19 +72,23 @@ export async function addPayment(
   description: string | undefined,
   adminId: string
 ) {
-  return prisma.$transaction(async (tx) => {
-    const result = await createTransaction(
-      {
-        memberAccountId,
-        amountCents,
-        type: "PAYMENT",
-        paymentMethod,
-        description,
-        createdByAdminId: adminId,
-      },
-      tx
-    );
+  const result = await withDbRetry(() =>
+    prisma.$transaction(async (tx) =>
+      createTransaction(
+        {
+          memberAccountId,
+          amountCents,
+          type: "PAYMENT",
+          paymentMethod,
+          description,
+          createdByAdminId: adminId,
+        },
+        tx
+      )
+    )
+  );
 
+  try {
     await logAudit({
       actorType: "ADMIN",
       actorId: adminId,
@@ -93,9 +97,11 @@ export async function addPayment(
       entityId: result.transaction.id,
       newValue: result.transaction,
     });
+  } catch (error) {
+    logDbError("PAYMENT_ADDED audit failed", error);
+  }
 
-    return result;
-  });
+  return result;
 }
 
 export async function addAdjustment(
@@ -104,18 +110,22 @@ export async function addAdjustment(
   description: string,
   adminId: string
 ) {
-  return prisma.$transaction(async (tx) => {
-    const result = await createTransaction(
-      {
-        memberAccountId,
-        amountCents,
-        type: "MANUAL_ADJUSTMENT",
-        description,
-        createdByAdminId: adminId,
-      },
-      tx
-    );
+  const result = await withDbRetry(() =>
+    prisma.$transaction(async (tx) =>
+      createTransaction(
+        {
+          memberAccountId,
+          amountCents,
+          type: "MANUAL_ADJUSTMENT",
+          description,
+          createdByAdminId: adminId,
+        },
+        tx
+      )
+    )
+  );
 
+  try {
     await logAudit({
       actorType: "ADMIN",
       actorId: adminId,
@@ -124,7 +134,9 @@ export async function addAdjustment(
       entityId: result.transaction.id,
       newValue: result.transaction,
     });
+  } catch (error) {
+    logDbError("ADJUSTMENT_ADDED audit failed", error);
+  }
 
-    return result;
-  });
+  return result;
 }

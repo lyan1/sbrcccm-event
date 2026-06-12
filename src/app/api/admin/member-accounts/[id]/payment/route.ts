@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
+import { logDbError } from "@/lib/db";
 import { paymentSchema } from "@/lib/validation";
 import { addPayment } from "@/lib/transactions";
 
@@ -27,7 +28,8 @@ export async function POST(
     );
 
     return NextResponse.json(result);
-  } catch {
+  } catch (error) {
+    logDbError(`POST /api/admin/member-accounts/${id}/payment`, error);
     return NextResponse.json({ error: "Payment failed" }, { status: 500 });
   }
 }
