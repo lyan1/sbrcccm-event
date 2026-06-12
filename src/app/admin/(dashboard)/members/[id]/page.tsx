@@ -27,8 +27,12 @@ export default function AdminMemberDetailPage() {
   const [families, setFamilies] = useState<Array<{ id: string; displayName: string }>>([]);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("ZELLE");
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentFeedback, setPaymentFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustDesc, setAdjustDesc] = useState("");
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false);
+  const [adjustFeedback, setAdjustFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   function load() {
     fetch(`/api/admin/member-accounts/${id}`)
@@ -88,18 +92,34 @@ export default function AdminMemberDetailPage() {
 
   async function handlePayment(e: React.FormEvent) {
     e.preventDefault();
+    setPaymentFeedback(null);
     const dollars = parseFloat(paymentAmount);
-    if (isNaN(dollars) || dollars <= 0) return;
-    await fetch(`/api/admin/member-accounts/${id}/payment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amountCents: Math.round(dollars * 100),
-        paymentMethod,
-      }),
-    });
-    setPaymentAmount("");
-    load();
+    if (isNaN(dollars) || dollars <= 0) {
+      setPaymentFeedback({ type: "error", text: t("invalidPaymentAmount") });
+      return;
+    }
+    setPaymentSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/member-accounts/${id}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amountCents: Math.round(dollars * 100),
+          paymentMethod,
+        }),
+      });
+      if (!res.ok) {
+        setPaymentFeedback({ type: "error", text: t("paymentFailed") });
+        return;
+      }
+      setPaymentAmount("");
+      setPaymentFeedback({ type: "success", text: t("paymentSuccess") });
+      load();
+    } catch {
+      setPaymentFeedback({ type: "error", text: t("paymentFailed") });
+    } finally {
+      setPaymentSubmitting(false);
+    }
   }
 
   async function handleDelete() {
@@ -118,19 +138,35 @@ export default function AdminMemberDetailPage() {
 
   async function handleAdjustment(e: React.FormEvent) {
     e.preventDefault();
+    setAdjustFeedback(null);
     const dollars = parseFloat(adjustAmount);
-    if (isNaN(dollars) || !adjustDesc) return;
-    await fetch(`/api/admin/member-accounts/${id}/adjustment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amountCents: Math.round(dollars * 100),
-        description: adjustDesc,
-      }),
-    });
-    setAdjustAmount("");
-    setAdjustDesc("");
-    load();
+    if (isNaN(dollars) || !adjustDesc) {
+      setAdjustFeedback({ type: "error", text: t("error") });
+      return;
+    }
+    setAdjustSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/member-accounts/${id}/adjustment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amountCents: Math.round(dollars * 100),
+          description: adjustDesc,
+        }),
+      });
+      if (!res.ok) {
+        setAdjustFeedback({ type: "error", text: t("adjustmentFailed") });
+        return;
+      }
+      setAdjustAmount("");
+      setAdjustDesc("");
+      setAdjustFeedback({ type: "success", text: t("adjustmentSuccess") });
+      load();
+    } catch {
+      setAdjustFeedback({ type: "error", text: t("adjustmentFailed") });
+    } finally {
+      setAdjustSubmitting(false);
+    }
   }
 
   if (!account) return <p>{t("loading")}</p>;
@@ -232,7 +268,14 @@ export default function AdminMemberDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button type="submit">{t("submit")}</Button>
+              <Button type="submit" disabled={paymentSubmitting}>
+                {paymentSubmitting ? t("loading") : t("submit")}
+              </Button>
+              {paymentFeedback && (
+                <p className={`text-sm ${paymentFeedback.type === "error" ? "text-destructive" : "text-green-700"}`}>
+                  {paymentFeedback.text}
+                </p>
+              )}
             </form>
           </CardContent>
         </Card>
@@ -243,7 +286,14 @@ export default function AdminMemberDetailPage() {
             <form onSubmit={handleAdjustment} className="space-y-3">
               <Input type="number" step="0.01" placeholder="Amount ($, +/-)" value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} required />
               <Input placeholder={t("description")} value={adjustDesc} onChange={(e) => setAdjustDesc(e.target.value)} required />
-              <Button type="submit">{t("submit")}</Button>
+              <Button type="submit" disabled={adjustSubmitting}>
+                {adjustSubmitting ? t("loading") : t("submit")}
+              </Button>
+              {adjustFeedback && (
+                <p className={`text-sm ${adjustFeedback.type === "error" ? "text-destructive" : "text-green-700"}`}>
+                  {adjustFeedback.text}
+                </p>
+              )}
             </form>
           </CardContent>
         </Card>
