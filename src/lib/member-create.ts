@@ -1,5 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
+import {
+  assertFamilyDisplayNameAvailable,
+  assertMemberDisplayNameAvailable,
+  normalizeDisplayName,
+} from "./display-name";
 import { mergeSoloBalanceIntoFamily } from "./family-balance";
 
 type TxClient = Prisma.TransactionClient;
@@ -17,13 +22,18 @@ export async function createMemberAccount(
   input: CreateMemberInput,
   client: TxClient = prisma
 ) {
-  const displayName = input.displayName.trim();
+  const displayName = normalizeDisplayName(input.displayName);
+  await assertMemberDisplayNameAvailable(displayName, undefined, client);
+
   let familyId = input.familyId ?? null;
 
   if (input.newFamilyDisplayName?.trim()) {
+    const familyDisplayName = normalizeDisplayName(input.newFamilyDisplayName);
+    await assertFamilyDisplayNameAvailable(familyDisplayName, undefined, client);
+
     const family = await client.family.create({
       data: {
-        displayName: input.newFamilyDisplayName.trim(),
+        displayName: familyDisplayName,
         phone: input.phone || null,
         email: input.email || null,
       },

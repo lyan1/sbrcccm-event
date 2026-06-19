@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { assertFamilyDisplayNameAvailable, isDisplayNameConflict } from "@/lib/display-name";
 import { updateFamilySchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 
@@ -49,6 +50,10 @@ export async function PATCH(
     const old = await prisma.family.findUnique({ where: { id } });
     if (!old) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    if (parsed.data.displayName !== undefined) {
+      await assertFamilyDisplayNameAvailable(parsed.data.displayName, id);
+    }
+
     const updated = await prisma.family.update({
       where: { id },
       data: {
@@ -68,7 +73,10 @@ export async function PATCH(
     });
 
     return NextResponse.json(updated);
-  } catch {
+  } catch (error) {
+    if (isDisplayNameConflict(error)) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 }

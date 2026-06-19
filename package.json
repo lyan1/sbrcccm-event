@@ -8,6 +8,7 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
+    "db:merge-duplicates": "tsx scripts/merge-duplicate-names.ts",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "lint": "next lint",

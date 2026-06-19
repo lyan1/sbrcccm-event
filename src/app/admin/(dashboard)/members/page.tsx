@@ -33,6 +33,7 @@ export default function AdminMembersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [newName, setNewName] = useState("");
+  const [createError, setCreateError] = useState("");
   const [error, setError] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -71,11 +72,21 @@ export default function AdminMembersPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/admin/member-accounts", {
+    setCreateError("");
+    const res = await fetch("/api/admin/member-accounts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ displayName: newName }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCreateError(
+        data.error === "MEMBER_DISPLAY_NAME_TAKEN"
+          ? t("duplicateMemberNameError")
+          : t("error")
+      );
+      return;
+    }
     setNewName("");
     setShowCreate(false);
     load();
@@ -201,9 +212,12 @@ export default function AdminMembersPage() {
       )}
 
       {showCreate && (
-        <form onSubmit={handleCreate} className="flex gap-2">
-          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t("displayName")} required />
-          <Button type="submit">{t("save")}</Button>
+        <form onSubmit={handleCreate} className="space-y-2">
+          <div className="flex gap-2">
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t("displayName")} required />
+            <Button type="submit">{t("save")}</Button>
+          </div>
+          {createError && <p className="text-sm text-destructive">{createError}</p>}
         </form>
       )}
 

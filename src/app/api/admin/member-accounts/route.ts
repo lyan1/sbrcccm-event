@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isDisplayNameConflict } from "@/lib/display-name";
 import { createMemberSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { createMemberAccount } from "@/lib/member-create";
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
       ...account,
       balanceCents: effectiveBalanceCents(account),
     });
-  } catch {
+  } catch (error) {
+    if (isDisplayNameConflict(error)) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Failed to create" }, { status: 500 });
   }
 }

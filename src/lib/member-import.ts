@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { logAudit } from "./audit";
+import { findFamilyByDisplayName, findMemberByDisplayName } from "./display-name";
 import { createMemberAccount } from "./member-create";
 import type { MemberImportErrorCode, ParsedMemberImportLine } from "./csv";
 
@@ -32,22 +33,9 @@ export async function importMembersFromParsedCsv(
       continue;
     }
 
-    const familyMatches = await prisma.family.findMany({
-      where: { displayName: { equals: entry.displayName, mode: "insensitive" } },
-      select: { id: true },
-    });
+    const familyMatch = await findFamilyByDisplayName(entry.displayName);
 
-    if (familyMatches.length > 1) {
-      outcomes.push({
-        line: entry.line,
-        status: "error",
-        reason: "DUPLICATE_NAMES",
-        displayName: entry.displayName,
-      });
-      continue;
-    }
-
-    if (familyMatches.length === 1) {
+    if (familyMatch) {
       outcomes.push({
         line: entry.line,
         status: "skipped",
@@ -57,25 +45,9 @@ export async function importMembersFromParsedCsv(
       continue;
     }
 
-    const memberMatches = await prisma.memberAccount.findMany({
-      where: {
-        displayName: { equals: entry.displayName, mode: "insensitive" },
-        familyId: null,
-      },
-      select: { id: true },
-    });
+    const memberMatch = await findMemberByDisplayName(entry.displayName);
 
-    if (memberMatches.length > 1) {
-      outcomes.push({
-        line: entry.line,
-        status: "error",
-        reason: "DUPLICATE_NAMES",
-        displayName: entry.displayName,
-      });
-      continue;
-    }
-
-    if (memberMatches.length === 1) {
+    if (memberMatch) {
       outcomes.push({
         line: entry.line,
         status: "skipped",

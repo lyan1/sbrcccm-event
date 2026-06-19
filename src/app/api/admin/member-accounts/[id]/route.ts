@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { cancelUpcomingRegistrationsForMember } from "@/lib/queries/member-accounts";
+import { assertMemberDisplayNameAvailable, isDisplayNameConflict } from "@/lib/display-name";
 import { updateMemberSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { assignMemberToFamily } from "@/lib/member-create";
@@ -69,6 +70,10 @@ export async function PATCH(
     const deactivating = old.isActive && parsed.data.isActive === false;
     const { familyId, ...memberFields } = parsed.data;
 
+    if (memberFields.displayName !== undefined) {
+      await assertMemberDisplayNameAvailable(memberFields.displayName, id);
+    }
+
     const { updated, cancelledRegistrationCount, cancelledRegistrationIds } =
       await prisma.$transaction(async (tx) => {
         let account = await tx.memberAccount.update({
@@ -126,7 +131,10 @@ export async function PATCH(
       balanceCents: effectiveBalanceCents(updated),
       cancelledRegistrationCount,
     });
-  } catch {
+  } catch (error) {
+    if (isDisplayNameConflict(error)) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 }

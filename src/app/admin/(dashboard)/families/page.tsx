@@ -27,6 +27,7 @@ export default function AdminFamiliesPage() {
   const [negativeOnly, setNegativeOnly] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [createError, setCreateError] = useState("");
 
   function load() {
     const params = new URLSearchParams();
@@ -45,11 +46,21 @@ export default function AdminFamiliesPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/admin/families", {
+    setCreateError("");
+    const res = await fetch("/api/admin/families", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ displayName: newName }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCreateError(
+        data.error === "FAMILY_DISPLAY_NAME_TAKEN"
+          ? t("duplicateFamilyNameError")
+          : t("error")
+      );
+      return;
+    }
     setNewName("");
     setShowCreate(false);
     load();
@@ -63,14 +74,17 @@ export default function AdminFamiliesPage() {
       </div>
 
       {showCreate && (
-        <form onSubmit={handleCreate} className="flex gap-2">
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder={t("familyName")}
-            required
-          />
-          <Button type="submit">{t("save")}</Button>
+        <form onSubmit={handleCreate} className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={t("familyName")}
+              required
+            />
+            <Button type="submit">{t("save")}</Button>
+          </div>
+          {createError && <p className="text-sm text-destructive">{createError}</p>}
         </form>
       )}
 

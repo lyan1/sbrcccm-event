@@ -14,6 +14,18 @@ import { setSelectedMember } from "@/lib/member-storage";
 
 type AccountType = "individual" | "join_family" | "create_family";
 
+async function hasExactNameMatch(
+  endpoint: "member-accounts" | "families",
+  name: string
+): Promise<boolean> {
+  const res = await fetch(
+    `/api/${endpoint}?q=${encodeURIComponent(name)}&exact=true`
+  );
+  if (!res.ok) return false;
+  const data = await res.json();
+  return Array.isArray(data) && data.length > 0;
+}
+
 export default function AddNamePage() {
   const { t } = useI18n();
   const router = useRouter();
@@ -25,18 +37,27 @@ export default function AddNamePage() {
   const [familyId, setFamilyId] = useState("");
   const [familyLabel, setFamilyLabel] = useState("");
   const [newFamilyDisplayName, setNewFamilyDisplayName] = useState("");
-  const [warning, setWarning] = useState("");
+  const [memberNameError, setMemberNameError] = useState("");
+  const [familyNameError, setFamilyNameError] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  async function checkDuplicate(name: string) {
-    const res = await fetch(`/api/member-accounts?q=${encodeURIComponent(name)}`);
-    const data = await res.json();
-    const exact = data.some(
-      (a: { displayName: string }) =>
-        a.displayName.toLowerCase() === name.toLowerCase()
-    );
-    setWarning(exact ? t("duplicateNameWarning") : "");
+  async function checkMemberName(name: string) {
+    if (!name) {
+      setMemberNameError("");
+      return;
+    }
+    const taken = await hasExactNameMatch("member-accounts", name);
+    setMemberNameError(taken ? t("duplicateMemberNameError") : "");
+  }
+
+  async function checkFamilyName(name: string) {
+    if (!name) {
+      setFamilyNameError("");
+      return;
+    }
+    const taken = await hasExactNameMatch("families", name);
+    setFamilyNameError(taken ? t("duplicateFamilyNameError") : "");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -49,6 +70,21 @@ export default function AddNamePage() {
     if (accountType === "create_family" && !newFamilyDisplayName.trim()) {
       setError(t("error"));
       return;
+    }
+
+    const memberTaken = await hasExactNameMatch("member-accounts", displayName.trim());
+    if (memberTaken) {
+      setMemberNameError(t("duplicateMemberNameError"));
+      return;
+    }
+
+    let familyTaken = false;
+    if (accountType === "create_family") {
+      familyTaken = await hasExactNameMatch("families", newFamilyDisplayName.trim());
+      if (familyTaken) {
+        setFamilyNameError(t("duplicateFamilyNameError"));
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -74,7 +110,14 @@ export default function AddNamePage() {
     });
 
     if (!res.ok) {
-      setError(t("error"));
+      const data = await res.json().catch(() => ({}));
+      if (data.error === "MEMBER_DISPLAY_NAME_TAKEN") {
+        setMemberNameError(t("duplicateMemberNameError"));
+      } else if (data.error === "FAMILY_DISPLAY_NAME_TAKEN") {
+        setFamilyNameError(t("duplicateFamilyNameError"));
+      } else {
+        setError(t("error"));
+      }
       setSubmitting(false);
       return;
     }
@@ -83,6 +126,8 @@ export default function AddNamePage() {
     setSelectedMember({ id: account.id, displayName: account.displayName });
     router.push("/");
   }
+
+  const hasBlockingNameError = Boolean(memberNameError || familyNameError);
 
   return (
     <PublicLayout>
@@ -101,12 +146,18 @@ export default function AddNamePage() {
               value={displayName}
               onChange={(e) => {
                 setDisplayName(e.target.value);
-                if (e.target.value.trim()) checkDuplicate(e.target.value.trim());
+                if (e.target.value.trim()) {
+                  void checkMemberName(e.target.value.trim());
+                } else {
+                  setMemberNameError("");
+                }
               }}
               required
               className="mt-1"
             />
-            {warning && <p className="mt-1 text-sm text-amber-600">{warning}</p>}
+            {memberNameError && (
+              <p className="mt-1 text-sm text-destructive">{memberNameError}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -159,10 +210,20 @@ export default function AddNamePage() {
               <Input
                 id="newFamilyDisplayName"
                 value={newFamilyDisplayName}
-                onChange={(e) => setNewFamilyDisplayName(e.target.value)}
+                onChange={(e) => {
+                  setNewFamilyDisplayName(e.target.value);
+                  if (e.target.value.trim()) {
+                    void checkFamilyName(e.target.value.trim());
+                  } else {
+                    setFamilyNameError("");
+                  }
+                }}
                 required
                 className="mt-1"
               />
+              {familyNameError && (
+                <p className="mt-1 text-sm text-destructive">{familyNameError}</p>
+              )}
             </div>
           )}
 
@@ -183,7 +244,12 @@ export default function AddNamePage() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full"
+            disabled={submitting || hasBlockingNameError}
+          >
             {submitting ? t("loading") : t("submit")}
           </Button>
         </form>

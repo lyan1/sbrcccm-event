@@ -18,6 +18,7 @@ export default function AdminFamilyDetailPage() {
   const router = useRouter();
   const id = params.id as string;
   const [deleteError, setDeleteError] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [family, setFamily] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ displayName: "", phone: "", email: "", notes: "" });
@@ -111,11 +112,21 @@ export default function AdminFamilyDetailPage() {
   }
 
   async function handleSave() {
-    await fetch(`/api/admin/families/${id}`, {
+    setSaveError("");
+    const res = await fetch(`/api/admin/families/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSaveError(
+        data.error === "FAMILY_DISPLAY_NAME_TAKEN"
+          ? t("duplicateFamilyNameError")
+          : t("error")
+      );
+      return;
+    }
     setEditing(false);
     load();
   }
@@ -259,6 +270,7 @@ export default function AdminFamilyDetailPage() {
             <div><Label>{t("phone")}</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><Label>{t("email")}</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div><Label>{t("notes")}</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
             <Button onClick={handleSave}>{t("save")}</Button>
           </CardContent>
         </Card>

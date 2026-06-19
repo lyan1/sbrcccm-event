@@ -18,6 +18,7 @@ export default function AdminMemberDetailPage() {
   const router = useRouter();
   const id = params.id as string;
   const [deleteError, setDeleteError] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [message, setMessage] = useState("");
 
   const [account, setAccount] = useState<Record<string, unknown> | null>(null);
@@ -59,11 +60,21 @@ export default function AdminMemberDetailPage() {
   }, [editing]);
 
   async function handleSave() {
-    await fetch(`/api/admin/member-accounts/${id}`, {
+    setSaveError("");
+    const res = await fetch(`/api/admin/member-accounts/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, familyId }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSaveError(
+        data.error === "MEMBER_DISPLAY_NAME_TAKEN"
+          ? t("duplicateMemberNameError")
+          : t("error")
+      );
+      return;
+    }
     setEditing(false);
     load();
   }
@@ -249,6 +260,7 @@ export default function AdminMemberDetailPage() {
                 </SelectContent>
               </Select>
             </div>
+            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
             <Button onClick={handleSave}>{t("save")}</Button>
           </CardContent>
         </Card>

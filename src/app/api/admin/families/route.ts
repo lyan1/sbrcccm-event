@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { assertFamilyDisplayNameAvailable, isDisplayNameConflict } from "@/lib/display-name";
 import { createFamilySchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
+    await assertFamilyDisplayNameAvailable(parsed.data.displayName);
+
     const family = await prisma.family.create({
       data: {
         displayName: parsed.data.displayName.trim(),
@@ -70,7 +73,10 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(family);
-  } catch {
+  } catch (error) {
+    if (isDisplayNameConflict(error)) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Failed to create family" }, { status: 500 });
   }
 }
