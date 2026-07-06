@@ -156,6 +156,42 @@ describe("calendar date markers", () => {
     expect(isCalendarDateAvailable(marker)).toBe(false);
     expect(isCalendarDateClosed(marker)).toBe(true);
   });
+
+  it("keeps dates available when a cancelled event shares the date with an open event", () => {
+    const markers = buildDateMarkers(
+      [
+        {
+          id: "1",
+          title: "A",
+          eventDate: "2026-06-20",
+          startTime: "09:00",
+          endTime: "11:00",
+          locationName: null,
+          address: null,
+          status: "CANCELLED",
+          registeredParticipantCount: 0,
+          registrationCount: 0,
+        },
+        {
+          id: "2",
+          title: "B",
+          eventDate: "2026-06-20",
+          startTime: "18:00",
+          endTime: "20:00",
+          locationName: null,
+          address: null,
+          status: "OPEN",
+          registeredParticipantCount: 1,
+          registrationCount: 1,
+        },
+      ],
+      parseDateTimeInTimezone("2026-06-20", "08:00")
+    );
+
+    const marker = markers.get("2026-06-20")!;
+    expect(isCalendarDateAvailable(marker)).toBe(true);
+    expect(isCalendarDateClosed(marker)).toBe(false);
+  });
 });
 
 describe("parseEventEnd", () => {

@@ -138,9 +138,12 @@ export function isCalendarDateAvailable(marker: DateMarker): boolean {
   return marker.openCount > 0;
 }
 
-/** User calendar: gray marker for dates with events that are no longer open. */
+/** User calendar: gray marker only when no events are still open for registration. */
 export function isCalendarDateClosed(marker: DateMarker): boolean {
-  return marker.closedCount > 0 || marker.completedCount > 0 || marker.cancelledCount > 0;
+  return (
+    marker.openCount === 0 &&
+    (marker.closedCount > 0 || marker.completedCount > 0 || marker.cancelledCount > 0)
+  );
 }
 
 export function monthRange(year: number, month: number): { from: string; to: string } {
