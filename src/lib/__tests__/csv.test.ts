@@ -56,6 +56,36 @@ describe("buildBalanceSnapshotCsv", () => {
     const zebraIdx = csv.indexOf("Zebra");
     expect(aliceIdx).toBeLessThan(zebraIdx);
   });
+
+  it("appends the total balance as the final row", () => {
+    const csv = buildBalanceSnapshotCsv({
+      snapshotTimestamp: new Date(),
+      eventId: null,
+      eventDate: null,
+      accounts: [
+        { id: "1", displayName: "Alice", balanceCents: 1250, phone: "555-0101", email: null, isActive: true },
+        { id: "2", displayName: "Bob", balanceCents: -500, phone: null, email: null, isActive: true },
+      ],
+    });
+
+    const rows = csv.replace(/^\uFEFF/, "").split("\n");
+    expect(rows.at(-1)).toBe("Total,7.50,");
+  });
+
+  it("exports a zero total when there are no accounts", () => {
+    const csv = buildBalanceSnapshotCsv({
+      snapshotTimestamp: new Date(),
+      eventId: null,
+      eventDate: null,
+      accounts: [],
+    });
+
+    const rows = csv.replace(/^\uFEFF/, "").split("\n");
+    expect(rows).toEqual([
+      "Member / Family Name,Balance,Phone",
+      "Total,0.00,",
+    ]);
+  });
 });
 
 describe("parseCsvLine", () => {

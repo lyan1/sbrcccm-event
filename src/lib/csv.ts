@@ -37,8 +37,14 @@ export function buildBalanceSnapshotCsv(params: {
     ].join(",")
   );
 
+  const totalBalanceCents = sorted.reduce(
+    (total, account) => total + account.balanceCents,
+    0
+  );
+  const totalRow = ["Total", formatBalanceDecimal(totalBalanceCents), ""].join(",");
+
   // UTF-8 BOM for Excel + Chinese names
-  return "\uFEFF" + [header, ...rows].join("\n");
+  return "\uFEFF" + [header, ...rows, totalRow].join("\n");
 }
 
 export function balanceSnapshotFilename(eventDate: Date | null, now = new Date()): string {
